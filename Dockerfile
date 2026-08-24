@@ -2,6 +2,14 @@
 # the credentials, and this image has no code path that needs them.
 FROM python:3.13-slim
 
+ARG MEERCAL_VERSION=0.0.0
+
+LABEL org.opencontainers.image.title="meercal-server" \
+      org.opencontainers.image.description="The meercal calendar — many calendars, seen at once" \
+      org.opencontainers.image.source="https://github.com/ribalba/meercal" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="${MEERCAL_VERSION}"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -15,6 +23,9 @@ COPY core /app/core
 COPY app /app/app
 COPY tools /app/tools
 COPY VERSION /app/VERSION
+# The build's own number wins over whatever the tree happened to hold, so an
+# image cannot claim a version it was not built from.
+RUN [ "$MEERCAL_VERSION" = "0.0.0" ] || printf '%s\n' "$MEERCAL_VERSION" > /app/VERSION
 
 # A non-root user, because nothing in here needs to be root and the image
 # mounts a configuration file that holds nothing but is still not its business.

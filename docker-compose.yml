@@ -32,6 +32,13 @@ services:
   server:
     build: .
     image: meercal-server:local
+    # The config file is mode 0600 on the host and holds calendar passwords, so
+    # the container has to run as the user that owns it — a bind mount carries
+    # the host's ownership through, and the image's own unprivileged user
+    # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
+    # passes the current user's. Running as root instead would read it, and is
+    # what the sibling projects do, but there is nothing in here that needs to.
+    user: "${MEERCAL_UID:-10001}:${MEERCAL_GID:-10001}"
     depends_on:
       db:
         condition: service_healthy

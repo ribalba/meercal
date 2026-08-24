@@ -68,7 +68,45 @@ that does not know about the alarm your phone set.
 | **Calendar access** | An app-specific password for iCloud (appleid.apple.com — your normal password will not work), or any CalDAV account. Google needs an OAuth client; a secret `.ics` address works read-only with no credentials at all. |
 | **Disk** | Small. A calendar is kilobytes per event; the expansion table is the bulk of it, and it is bounded by the horizon. |
 
-## Quick start
+## Install: the quick way
+
+No clone, no build, no Python on your machine — one script that asks what it needs, writes a
+configuration, and runs the published containers.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ribalba/meercal/main/meercal.sh -o meercal.sh
+bash meercal.sh
+```
+
+It checks Docker is there, asks where your calendars live (iCloud, CalDAV, a published `.ics`
+feed, Google), picks a free port, pulls `ribalba/meercal-{server,agent}` from Docker Hub and
+starts them. Everything it writes lives in `~/.meercal` (override with `MEERCAL_HOME`); your
+events live in a Docker volume.
+
+Afterwards:
+
+```bash
+bash meercal.sh status      # containers, version, and whether the accounts are syncing
+bash meercal.sh logs agent  # watch the first sync work through your calendars
+bash meercal.sh test        # check every account, change nothing
+bash meercal.sh sync        # run one pass now
+bash meercal.sh demo        # fill it with demo calendars worth looking at
+bash meercal.sh update      # pull the newest release and restart
+bash meercal.sh config      # edit meercal.toml, then restart
+bash meercal.sh backup      # dump the database
+bash meercal.sh help        # everything else
+```
+
+Windows: run it inside WSL2 or Git Bash, with Docker Desktop running.
+
+Unlike meerail, the **agent is a container here too**. meerail has to run its agent on the
+host because Proton Bridge listens on the host's loopback; meercal's agent talks to CalDAV
+servers out on the internet, so there is nothing on your machine it needs to reach. Your
+calendar passwords still stay put: they are in `~/.meercal/meercal.toml`, mode 0600, mounted
+read-only into the two containers that read it — which is also why those containers run as
+you rather than as root.
+
+## Install: from a checkout
 
 ```bash
 git clone https://github.com/ribalba/meercal
@@ -116,6 +154,9 @@ Then run the agent:
 make agent-test   # prove every connection, change nothing
 make agent        # sync now, and every [agent] interval after
 ```
+
+(In a `meercal.sh` install the agent is already running as a container; `meercal.sh test` and
+`meercal.sh sync` are the same two commands.)
 
 `make agent-test` is the first thing to run when a calendar is not appearing: it reports, per
 account, whether discovery worked and which calendars it found.
@@ -269,6 +310,20 @@ tools/caldav_test_server.sh stop
 
 The tests that need Postgres skip without `MEERCAL_TEST_DB`, and the CalDAV ones skip without
 a server — so a bare `pytest` still runs everything that does not.
+
+### Releasing
+
+```bash
+make images     # build ribalba/meercal-{server,agent} for this machine
+make hub-up     # run the published-image stack from what you just built
+make push       # build for linux/amd64 + linux/arm64 and push to Docker Hub
+```
+
+`VERSION` is the single source of the number: it tags both images, stamps their OCI labels,
+and is what an install compares itself against to notice an update. `make push` gives each
+image `:$(VERSION)` and `:latest` in one command, so the two tags cannot end up pointing at
+different builds — which is the failure that has somebody debugging a version they are not
+running. It needs `docker login` first.
 
 The website that fronts this is in [`website/`](website/); its screenshots are captured from
 a running instance rather than mocked.

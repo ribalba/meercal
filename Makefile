@@ -10,7 +10,22 @@ PY      := $(VENV)/bin/python
 PIP     := $(VENV)/bin/pip
 VERSION := $(shell cat VERSION)
 
-.PHONY: help up down logs build infra dev venv agent agent-test seed psql fmt test test-db desktop version
+# --- release images ----------------------------------------------------------
+#
+# The two images `meercal.sh` pulls. VERSION is the single source of the number:
+# it tags the images, stamps their OCI labels, and is what an install compares
+# itself against to notice an update.
+DOCKER_ORG ?= ribalba
+# Both architectures the project claims to support: Intel/AMD servers and Apple
+# Silicon. Nothing here is compiled per-arch — the Python dependencies all ship
+# aarch64 wheels — so the emulated half is not as slow as it sounds.
+PLATFORMS  ?= linux/amd64,linux/arm64
+# A named builder, because the default `docker` driver cannot do multi-platform
+# builds at all. Created on demand by the buildx target below.
+BUILDER    ?= meercal
+
+.PHONY: help up down logs build infra dev venv agent agent-test seed psql fmt test test-db \
+        desktop hub-up hub-down buildx images push images-push version
 
 help:
 	@echo "meercal $(VERSION):"
@@ -26,10 +41,13 @@ help:
 	@echo "  make psql       - a shell on the database"
 	@echo "  make desktop    - run the Electron app against the local server"
 	@echo "  make test       - run the test suite"
+	@echo "  make images     - build the release images for this machine"
+	@echo "  make push       - build them for every platform and push to Docker Hub"
+	@echo "  make hub-up     - run the published-image stack (what meercal.sh installs)"
 	@echo "  make test-db    - create the throwaway database the API tests need"
 
 up:
-	$(COMPOSE) up --build -d
+	MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) $(COMPOSE) up --build -d
 	@echo "meercal on http://127.0.0.1:$${MEERCAL_PORT:-8010}"
 
 down:
@@ -78,6 +96,48 @@ test-db:
 
 test:
 	MEERCAL_TEST_DB=$(TEST_DB) $(VENV)/bin/pytest -q
+
+# The stack an install actually runs, from the images `make images` just built.
+# Pinning the tag to VERSION rather than `latest` is what makes this a test of
+# the thing about to be pushed rather than of whatever is on the Hub.
+hub-up:
+	MEERCAL_VERSION=$(VERSION) MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) \
+	  $(COMPOSE) -f docker-compose.hub.yml up -d
+	@echo "meercal on http://127.0.0.1:$${MEERCAL_PORT:-8010}"
+
+hub-down:
+	$(COMPOSE) -f docker-compose.hub.yml down
+
+buildx:
+	@docker buildx inspect $(BUILDER) >/dev/null 2>&1 \
+	  || docker buildx create --name $(BUILDER) --driver docker-container --bootstrap
+	@docker buildx use $(BUILDER)
+
+# Native-architecture build, loaded locally — what you want before pushing
+# anything, and what `make hub-up` will find.
+images:
+	docker build --build-arg MEERCAL_VERSION=$(VERSION) \
+	  -t $(DOCKER_ORG)/meercal-server:$(VERSION) -t $(DOCKER_ORG)/meercal-server:latest .
+	docker build --build-arg MEERCAL_VERSION=$(VERSION) -f agent/Dockerfile \
+	  -t $(DOCKER_ORG)/meercal-agent:$(VERSION) -t $(DOCKER_ORG)/meercal-agent:latest .
+	@echo
+	@echo "Built $(DOCKER_ORG)/meercal-{server,agent}:$(VERSION) for this machine."
+
+# Publishes. Needs `docker login` first, and push rights on $(DOCKER_ORG).
+# Every image gets both tags in one go, so :latest and :$(VERSION) can never
+# point at different builds — which is the failure that has people debugging a
+# version they are not running.
+push: images-push
+
+images-push: buildx
+	docker buildx build --platform $(PLATFORMS) --build-arg MEERCAL_VERSION=$(VERSION) \
+	  -t $(DOCKER_ORG)/meercal-server:$(VERSION) -t $(DOCKER_ORG)/meercal-server:latest --push .
+	docker buildx build --platform $(PLATFORMS) --build-arg MEERCAL_VERSION=$(VERSION) \
+	  -f agent/Dockerfile \
+	  -t $(DOCKER_ORG)/meercal-agent:$(VERSION) -t $(DOCKER_ORG)/meercal-agent:latest --push .
+	@echo
+	@echo "Pushed $(DOCKER_ORG)/meercal-{server,agent}:$(VERSION) (+ :latest) for $(PLATFORMS)."
+	@echo "Installs see the new version once VERSION is on main; 'meercal.sh update' takes it."
 
 version:
 	@echo $(VERSION)

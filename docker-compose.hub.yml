@@ -1,0 +1,88 @@
+# meercal from published images — what `meercal.sh` installs.
+#
+# Nothing here is built: every service is pulled from Docker Hub, so an install
+# needs Docker and this file and nothing else. The developer path is the other
+# compose file, which builds the same images from the tree.
+#
+# The whole system is three containers, and the interesting one is `agent`.
+# meerail has to run its agent on the host, because Proton Bridge listens on the
+# host's loopback; meercal's agent talks to CalDAV servers out on the internet,
+# so it can be a container like the rest. Your calendar passwords still stay on
+# your machine: they are in meercal.toml, mounted read-only into the two
+# containers that read it and written nowhere else.
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-meercal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meercal}
+      POSTGRES_DB: ${POSTGRES_DB:-meercal}
+    networks: [meercal]
+    ports:
+      # Loopback only, and only so that `meercal.sh psql`, a backup, or an agent
+      # run from a checkout can reach it. Drop the 127.0.0.1 and Docker
+      # publishes on 0.0.0.0 — straight through the host firewall to a database
+      # with whatever password is in .env.
+      - "127.0.0.1:${MEERCAL_DB_PORT:-5433}:5432"
+    volumes:
+      # Postgres 18+ expects a single mount at /var/lib/postgresql (not
+      # .../data); this layout is what allows an in-place `pg_upgrade --link`
+      # when the image's major version moves.
+      - meercal-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meercal} -d ${POSTGRES_DB:-meercal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  server:
+    image: ${MEERCAL_IMAGE_SERVER:-ribalba/meercal-server}:${MEERCAL_VERSION:-latest}
+    # The config file is mode 0600 on the host and holds calendar passwords, so
+    # the container has to run as the user that owns it — a bind mount carries
+    # the host's ownership through, and the image's own unprivileged user
+    # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
+    # passes the current user's. Running as root instead would read it, and is
+    # what the sibling projects do, but there is nothing in here that needs to.
+    user: "${MEERCAL_UID:-10001}:${MEERCAL_GID:-10001}"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Container topology only. Everything else comes from meercal.toml, which
+      # is why nothing here sets a value it does not mean: an `environment:`
+      # entry with a ${VAR:-default} fallback is *always* set, and the
+      # environment beats the file.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
+    volumes:
+      - ./meercal.toml:/app/meercal.toml:ro
+    networks: [meercal]
+    ports:
+      - "${MEERCAL_BIND:-127.0.0.1}:${MEERCAL_PORT:-8010}:8000"
+    restart: unless-stopped
+
+  agent:
+    image: ${MEERCAL_IMAGE_AGENT:-ribalba/meercal-agent}:${MEERCAL_VERSION:-latest}
+    # The config file is mode 0600 on the host and holds calendar passwords, so
+    # the container has to run as the user that owns it — a bind mount carries
+    # the host's ownership through, and the image's own unprivileged user
+    # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
+    # passes the current user's. Running as root instead would read it, and is
+    # what the sibling projects do, but there is nothing in here that needs to.
+    user: "${MEERCAL_UID:-10001}:${MEERCAL_GID:-10001}"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
+    volumes:
+      - ./meercal.toml:/app/meercal.toml:ro
+    networks: [meercal]
+    restart: unless-stopped
+
+networks:
+  meercal:
+
+volumes:
+  meercal-db:

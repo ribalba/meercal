@@ -394,9 +394,9 @@
     <section id="start" class="landing-features">
       <h2 class="landing-section-title">Get started</h2>
       <p class="landing-section-lede">
-        Two containers and a small agent. You need <strong>Docker</strong> with
-        the Compose plugin, and Python 3.11+ for the agent — which runs on your
-        machine, because that is where your calendar passwords should stay.
+        One script, three containers, and your calendars. You need
+        <strong>Docker</strong> with the Compose plugin — nothing else, on any
+        operating system.
       </p>
 
       <div class="landing-grid">
@@ -405,19 +405,17 @@
             <div class="landing-card-wide-inner">
               <div class="landing-card-wide-copy">
                 <div class="landing-card-icon"><i class="terminal icon"></i></div>
-                <h3>1. Run the app</h3>
+                <h3>1. Run the installer</h3>
                 <p>
-                  Clone it, copy the example configuration, and bring the stack
-                  up. The web layer and its Postgres are the whole of it —
-                  everything the app itself needs is in those two containers.
+                  It checks Docker, asks where your calendars live, picks a free
+                  port and pulls the published images. No clone, no build, no
+                  Python — everything it writes lands in <code>~/.meercal</code>,
+                  and your events live in a Docker volume.
                 </p>
               </div>
               <div class="landing-card-wide-aside">
-                <pre class="landing-code">git clone https://github.com/ribalba/meercal
-cd meercal
-cp meercal.example.toml meercal.toml
-chmod 600 meercal.toml
-make up      # http://127.0.0.1:8010</pre>
+                <pre class="landing-code">curl -fsSL https://raw.githubusercontent.com/ribalba/meercal/main/meercal.sh -o meercal.sh
+bash meercal.sh</pre>
               </div>
             </div>
           </div>
@@ -426,33 +424,33 @@ make up      # http://127.0.0.1:8010</pre>
         <article class="landing-card">
           <div class="landing-card-body">
             <div class="landing-card-icon"><i class="calendar alternate icon"></i></div>
-            <h3>2. Add your calendars</h3>
+            <h3>2. Point it at your calendars</h3>
             <p>
-              One <code>[[agent.account]]</code> block per account in
-              <code>meercal.toml</code>. iCloud needs an app-specific password
-              from appleid.apple.com — your normal one will not work.
+              The installer asks, one account at a time: iCloud with an
+              app-specific password, any CalDAV server, a published
+              <code>.ics</code> feed, or Google. Add more later with
+              <code>meercal.sh config</code>.
             </p>
-            <pre class="landing-code">[[agent.account]]
-label = "Family"
-kind = "icloud"
-username = "you@icloud.com"
-password = "abcd-efgh-ijkl-mnop"</pre>
+            <pre class="landing-code">bash meercal.sh test
+bash meercal.sh sync
+bash meercal.sh logs agent</pre>
           </div>
         </article>
 
         <article class="landing-card">
           <div class="landing-card-body">
-            <div class="landing-card-icon"><i class="sync icon"></i></div>
-            <h3>3. Run the agent</h3>
+            <div class="landing-card-icon"><i class="shield alternate icon"></i></div>
+            <h3>3. That is it</h3>
             <p>
-              It discovers every calendar the account offers, syncs them, and
-              then keeps them in step. <code>--test</code> proves each connection
-              and changes nothing, which is the first thing to run when something
-              is not appearing.
+              The agent is a container here too — it talks to CalDAV servers out
+              on the internet, so there is nothing on your machine it needs to
+              reach. Your passwords stay in <code>~/.meercal/meercal.toml</code>,
+              mode 0600, mounted read-only into the two containers that read it,
+              which is also why they run as you rather than as root.
             </p>
-            <pre class="landing-code">make venv
-make agent-test   # prove the connections
-make agent        # sync, every 5 minutes</pre>
+            <pre class="landing-code">bash meercal.sh status
+bash meercal.sh update
+bash meercal.sh backup</pre>
           </div>
         </article>
       </div>
@@ -484,10 +482,11 @@ make distinstall        # and put it in your app menu</pre>
       </div>
 
       <p class="landing-section-lede" style="margin-top:2rem">
-        No calendars to hand? <code>make seed</code> fills it with a week worth
-        looking at — seven calendars, a nineteen-day trip, an on-call rota and a
-        double booking — so you can see the Ribbon before you hand over a
-        password.
+        No calendars to hand? <code>bash meercal.sh demo</code> fills it with a
+        week worth looking at — seven calendars, a nineteen-day trip, an on-call
+        rota and a double booking — so you can see the Ribbon before you hand
+        over a password. Prefer a checkout? <code>make up</code> builds the same
+        stack from the source.
       </p>
     </section>
 
