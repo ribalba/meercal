@@ -1,0 +1,443 @@
+/* meercal — the calendar half of the suite. Light + dark, following the system
+   unless the theme is forced.
+
+   The palette is meerail's, deliberately: the two programs sit side by side on
+   the same screen and a second definition of "dark" would show. What is new
+   here is only what a calendar needs — the rail, the day rows, the lanes. */
+
+:root {
+  /* Which half of every light-dark() pair below is used. `light dark` means the
+     OS decides — and it also puts scrollbars and form controls on the same side
+     as the rest of the app, which a hand-rolled palette cannot. */
+  color-scheme: light dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --accent: light-dark(#1d6ff2, #3b82f6);
+  --accent-weak: light-dark(#e8f0fe, #1e2a44);
+  --accent-soft: light-dark(#6ba4f8, #7cb0fb);
+  --bg: light-dark(#ffffff, #1c1c1e);
+  --bg-elev: light-dark(#f5f5f7, #2c2c2e);
+  --sidebar: light-dark(#e8e8ea, #232325);
+  --sidebar-section: #8a8a8e;
+  --text: light-dark(#1d1d1f, #f5f5f7);
+  --text-muted: light-dark(#86868b, #8d8d92);
+  --text-faint: light-dark(#a1a1a6, #6a6a6e);
+  --border: light-dark(#dededf, #313133);
+  --border-strong: light-dark(#cbcbcd, #3a3a3c);
+  --danger: #d70015;
+  --warning: light-dark(#96610a, #f5a623);
+  --now: light-dark(#d70015, #ff453a);
+  --shadow: 0 1px 3px light-dark(rgba(0,0,0,.10), rgba(0,0,0,.5)),
+            0 10px 30px light-dark(rgba(0,0,0,.08), rgba(0,0,0,.4));
+  --radius: 8px;
+  --hover-tint: light-dark(rgba(0,0,0,.05), rgba(255,255,255,.06));
+  --hover-tint-soft: light-dark(rgba(0,0,0,.035), rgba(255,255,255,.05));
+  --hover-tint-strong: light-dark(rgba(0,0,0,.06), rgba(255,255,255,.08));
+  /* Weekend columns and rows. A tint rather than a different surface: the
+     weekend is still part of the week, and a panel edge through the middle of
+     a month grid reads as a break in the data. */
+  --weekend: light-dark(rgba(0,0,0,.025), rgba(255,255,255,.028));
+  /* The span rail. One lane is deliberately narrow — the bars are the shape of
+     the thing, and their titles run down them. */
+  --lane-w: 24px;
+  --gutter-w: 64px;
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+/* `hidden` outranks the layout rules below. Without this, any element given
+   `display: grid` or `flex` — the login overlay, the search panel — ignores
+   the attribute entirely, which is a whole class of "why is that on screen". */
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; font-family: var(--font); color: var(--text);
+  background: var(--bg); -webkit-font-smoothing: antialiased; overflow: hidden; }
+.muted { color: var(--text-muted); }
+.small { font-size: .8rem; }
+.grow { flex: 1; }
+kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .7rem;
+  background: var(--bg-elev); border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 4px; padding: .05rem .3rem; color: var(--text-muted); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78em; }
+button { font-family: inherit; color: inherit; }
+
+/* --- Layout --- */
+.app { display: grid; grid-template-columns: 236px 1fr; height: 100vh; }
+.main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+/* --- Sidebar --- */
+.sidebar { background: var(--sidebar); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-toolbar { display: flex; align-items: center; justify-content: space-between;
+  padding: .55rem .75rem .35rem .9rem; -webkit-app-region: drag; }
+.brand { font-weight: 700; font-size: .98rem; letter-spacing: -.01em;
+  display: flex; align-items: center; gap: .4rem; margin-right: auto; }
+.brand-logo { height: 20px; width: auto; display: block; }
+.sidebar-toolbar .icon-btn, .sidebar-tools .icon-btn { -webkit-app-region: no-drag; }
+.sidebar-tools { display: flex; justify-content: flex-end; gap: .1rem; padding: 0 .75rem .4rem; }
+
+.icon-btn { background: none; border: 0; cursor: pointer; border-radius: 6px;
+  padding: .25rem .4rem; font-size: .95rem; line-height: 1.2; color: var(--text-muted); }
+.icon-btn:hover { background: var(--hover-tint-strong); color: var(--text); }
+#btn-refresh.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.agent-warning { margin: 0 .75rem .5rem; padding: .4rem .55rem; border-radius: 6px;
+  background: light-dark(#fff4e5, #3a2a12); color: var(--warning); border: 1px solid var(--border);
+  font-size: .78rem; text-align: left; cursor: pointer; }
+
+.cal-tree { flex: 1; overflow-y: auto; padding: .25rem .5rem 1rem; }
+.tree-section { font-size: .68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--sidebar-section); padding: .8rem .55rem .25rem;
+  display: flex; align-items: center; gap: .35rem; }
+
+.cal-row { display: flex; align-items: center; gap: .5rem; padding: .3rem .5rem;
+  border-radius: 6px; cursor: pointer; font-size: .86rem; user-select: none; }
+.cal-row:hover { background: var(--hover-tint); }
+.cal-row.off { color: var(--text-faint); }
+/* The dot is the calendar's colour everywhere in the app — sidebar, chip,
+   bar, modal — so that a colour is only ever learned once. Hidden calendars
+   keep the hue and lose the fill: still identifiable, plainly switched off. */
+.cal-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c);
+  flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.cal-row.off .cal-dot { background: transparent; box-shadow: inset 0 0 0 2px var(--c); opacity: .6; }
+.cal-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-warn { color: var(--danger); font-weight: 700; }
+.cal-solo { opacity: 0; border: 0; background: none; cursor: pointer; font-size: .8rem;
+  color: var(--text-muted); padding: 0 .15rem; }
+.cal-row:hover .cal-solo { opacity: 1; }
+.cal-solo:hover { color: var(--accent); }
+
+.set-row { display: flex; width: 100%; align-items: center; gap: .5rem; padding: .3rem .5rem;
+  border: 0; background: none; border-radius: 6px; cursor: pointer; font-size: .86rem; text-align: left; }
+.set-row:hover { background: var(--hover-tint); }
+.set-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cal-actions { display: flex; align-items: center; gap: .5rem; padding: .6rem .55rem 0; flex-wrap: wrap; }
+.link { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: .78rem; padding: 0; }
+.link:hover { text-decoration: underline; }
+
+.shortcut-box { border-top: 1px solid var(--border); padding: .5rem .9rem .7rem;
+  font-size: .74rem; color: var(--text-muted); max-height: 34vh; overflow-y: auto; }
+.shortcut-box:not(.open) .shortcut-row:nth-child(n+7) { display: none; }
+.shortcut-title { font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  font-size: .66rem; color: var(--sidebar-section); padding-bottom: .3rem; }
+.shortcut-row { display: flex; gap: .5rem; align-items: center; padding: .1rem 0; }
+.shortcut-row kbd { min-width: 2.1rem; text-align: center; }
+
+/* --- Toolbar --- */
+.toolbar { display: flex; align-items: center; gap: .5rem; padding: .5rem .8rem;
+  border-bottom: 1px solid var(--border); background: var(--bg); -webkit-app-region: drag; }
+.toolbar button, .toolbar input, .toolbar label { -webkit-app-region: no-drag; }
+.view-title { font-size: 1.02rem; font-weight: 650; margin: 0 .3rem; letter-spacing: -.01em;
+  white-space: nowrap; }
+.hidden-note { font-size: .74rem; color: var(--text-muted); background: var(--bg-elev);
+  border: 1px solid var(--border); border-radius: 20px; padding: .1rem .5rem; }
+.nav-pair { display: flex; }
+.nav-pair .icon-btn { font-size: 1.1rem; padding: .1rem .45rem; }
+
+.btn { border: 1px solid var(--border-strong); background: var(--bg); border-radius: 7px;
+  padding: .3rem .7rem; font-size: .84rem; cursor: pointer; }
+.btn:hover { background: var(--hover-tint-soft); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--danger); border-color: var(--border); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.view-switch { display: flex; border: 1px solid var(--border-strong); border-radius: 7px;
+  overflow: hidden; }
+.view-switch button { border: 0; background: var(--bg); padding: .3rem .6rem; font-size: .82rem;
+  cursor: pointer; border-right: 1px solid var(--border); }
+.view-switch button:last-child { border-right: 0; }
+.view-switch button:hover { background: var(--hover-tint-soft); }
+.view-switch button.active { background: var(--accent); color: #fff; }
+
+/* --- Filter --- */
+.filter-region { border-bottom: 1px solid var(--border); background: var(--bg); position: relative; }
+.filter-bar { display: flex; align-items: center; gap: .4rem; padding: .35rem .8rem; }
+.filter-icon { color: var(--text-muted); }
+#filter-input { flex: 1; border: 1px solid var(--border); background: var(--bg-elev);
+  border-radius: 7px; padding: .3rem .6rem; font-size: .84rem; color: var(--text); min-width: 0; }
+#filter-input:focus { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
+.rx-toggle { display: flex; align-items: center; gap: .25rem; font-size: .78rem; color: var(--text-muted); }
+.filter-help { display: flex; gap: .3rem; padding: 0 .8rem .4rem 1.9rem; flex-wrap: wrap; }
+.help-token { border: 1px solid var(--border); background: var(--bg-elev); border-radius: 20px;
+  padding: 0 .45rem; cursor: pointer; color: var(--text-muted); }
+.help-token:hover { border-color: var(--accent); color: var(--accent); }
+
+.search-results { position: absolute; z-index: 30; left: .8rem; right: .8rem; top: 100%;
+  background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow); max-height: 50vh; overflow-y: auto; padding: .3rem; }
+.hit { display: flex; align-items: center; gap: .55rem; width: 100%; border: 0; background: none;
+  padding: .35rem .5rem; border-radius: 6px; cursor: pointer; font-size: .84rem; text-align: left; }
+.hit:hover { background: var(--hover-tint); }
+.hit.past { color: var(--text-muted); }
+.hit-date { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: .78rem; }
+.hit-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hit-cal { font-size: .75rem; color: var(--text-faint); }
+
+/* --- Stage --- */
+#stage { flex: 1; min-height: 0; overflow: auto; }
+
+/* =========================================================================
+   The Ribbon
+   ========================================================================= */
+
+.ribbon { background: var(--bg); }
+.ribbon-grid { display: grid;
+  grid-template-columns: var(--gutter-w) repeat(var(--lanes, 1), var(--lane-w)) minmax(0, 1fr);
+  align-items: stretch; }
+.ribbon:not(.has-rail) .ribbon-grid { --lane-w: 0px; }
+
+/* Month, sticky at the top of the scroll: the one label that says where you
+   are once the grid has scrolled past its own header. */
+.rb-month { position: sticky; top: 0; z-index: 6; background: var(--bg);
+  border-bottom: 1px solid var(--border-strong); padding: .5rem .8rem .25rem;
+  font-weight: 700; font-size: .8rem; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--text-muted); }
+
+.rb-gutter { display: flex; flex-direction: column; align-items: flex-end; gap: 0;
+  padding: .4rem .55rem .4rem 0; border-right: 1px solid var(--border);
+  position: relative; }
+.rb-gutter.rule, .rb-day.rule { border-top: 1px solid var(--border-strong); }
+.rb-dnum { font-size: 1rem; font-weight: 620; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.rb-dow { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+.rb-week { font-size: .62rem; color: var(--text-faint); font-variant-numeric: tabular-nums;
+  margin-top: .1rem; }
+.rb-gutter.today .rb-dnum { background: var(--accent); color: #fff; border-radius: 50%;
+  width: 1.6rem; height: 1.6rem; display: grid; place-items: center; }
+/* Two calendars want the same hour. Marked in the gutter as well as on the
+   chips, because the whole point is to see it without reading the row. */
+.rb-clash { position: absolute; left: .35rem; top: .45rem; color: var(--danger);
+  font-weight: 800; font-size: .8rem; }
+
+.rb-day { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .25rem;
+  padding: .4rem .8rem .4rem .6rem; min-height: 2.3rem; position: relative;
+  border-bottom: 1px solid var(--border); }
+.rb-day.today { background: var(--accent-weak); }
+.rb-empty { min-height: 1rem; }
+
+/* A day's events, as pills. Dense on purpose: a fortnight of twenty calendars
+   has to fit on a screen, and the row grows only as far as its own content. */
+.chip { display: inline-flex; align-items: baseline; gap: .35rem; max-width: 100%;
+  border: 1px solid transparent; background: var(--c-weak); border-left: 3px solid var(--c);
+  border-radius: 5px; padding: .12rem .45rem; font-size: .8rem; cursor: pointer;
+  text-align: left; }
+.chip:hover { filter: brightness(.97); border-color: var(--c); }
+.chip-time { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: .74rem; }
+.chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 26rem; }
+.chip-where { color: var(--text-faint); font-size: .72rem; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; max-width: 10rem; }
+.chip-mark { color: var(--text-faint); font-size: .68rem; }
+.chip.all-day { background: var(--c); color: #fff; border-left-color: var(--c); }
+.chip.all-day .chip-time, .chip.all-day .chip-where, .chip.all-day .chip-mark { color: rgba(255,255,255,.8); }
+/* TRANSP — a note in the time rather than a claim on it. Hatched so that the
+   distinction survives being three pixels tall in a dense week. */
+.chip.free { background: repeating-linear-gradient(135deg, var(--c-weak) 0 6px, transparent 6px 12px); }
+.chip.clash { box-shadow: 0 0 0 1px var(--danger) inset; }
+.chip.cancelled .chip-title { text-decoration: line-through; opacity: .7; }
+
+.rb-now { font-size: .58rem; font-weight: 700; color: #fff; background: var(--now);
+  border-radius: 20px; padding: 0 .32rem; margin-top: .15rem; font-variant-numeric: tabular-nums; }
+/* Today's chips that have already happened. Dimmed rather than hidden: what
+   was on this morning is still the answer to "did I miss it". */
+.chip.past { opacity: .55; }
+.chip.past:hover { opacity: 1; }
+
+.rb-quiet { border: 0; background: none; cursor: pointer; width: 100%; text-align: left;
+  padding: .2rem .8rem .2rem .6rem; font-size: .72rem; color: var(--text-faint);
+  border-bottom: 1px dashed var(--border); }
+.rb-quiet:hover { color: var(--accent); background: var(--hover-tint-soft); }
+
+/* --- The rail --- */
+/* A long event is one bar, however many weeks it covers, because time did not
+   wrap — the view did not either. The title runs down it, and stays on screen
+   while the bar does: `sticky` is what turns a colour into "you are on day 4
+   of 19". */
+.span { position: relative; margin: 1px 3px 1px 1px; border-radius: 7px;
+  background: var(--c-weak); border: 1px solid var(--c); border-left-width: 3px;
+  cursor: pointer; overflow: hidden; min-height: 1.5rem; }
+.span:hover { background: var(--c); }
+.span:hover .span-label { color: #fff; }
+.span.free { background: repeating-linear-gradient(135deg, var(--c-weak) 0 5px, transparent 5px 10px); }
+/* Runs past the loaded window: no cap on that end, and a fade to say so. */
+.span.open-top { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px); }
+.span.open-bottom { border-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+  mask-image: linear-gradient(to top, transparent 0, #000 18px); }
+.span.open-top.open-bottom {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%); }
+.span-label { position: sticky; top: 8px; writing-mode: vertical-rl; text-orientation: mixed;
+  display: flex; align-items: center; gap: .5rem; padding: .45rem .15rem; font-size: .74rem;
+  color: var(--text); max-height: calc(100vh - 12rem); overflow: hidden; }
+.span-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-height: 22rem; }
+.span-count { color: var(--text-muted); font-size: .68rem; font-variant-numeric: tabular-nums;
+  white-space: nowrap; }
+.span:hover .span-count { color: rgba(255,255,255,.85); }
+
+/* =========================================================================
+   Week / Day
+   ========================================================================= */
+
+.week { display: flex; flex-direction: column; overflow: hidden; }
+.wk-fixed { background: var(--bg); border-bottom: 1px solid var(--border-strong); }
+.wk-head { display: grid; grid-template-columns: var(--gutter-w) repeat(var(--cols, 7), 1fr); }
+.wk-corner { font-size: .68rem; color: var(--text-faint); display: grid; place-items: center; }
+.wk-daylabel { display: flex; flex-direction: column; align-items: center; padding: .35rem 0 .3rem;
+  border-left: 1px solid var(--border); }
+.wk-dow { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.wk-dnum { font-size: 1.15rem; font-weight: 620; font-variant-numeric: tabular-nums; }
+.wk-daylabel.today .wk-dnum { background: var(--accent); color: #fff; border-radius: 50%;
+  width: 1.9rem; height: 1.9rem; display: grid; place-items: center; }
+.wk-daylabel.today .wk-dow { color: var(--accent); }
+
+/* The all-day strip. Bars run across the columns without breaking, and an
+   arrow says the thing continues past the edge of the week — which is the one
+   fact the usual all-day row leaves out. */
+.wk-strip { display: grid; grid-template-columns: var(--gutter-w) 1fr; align-items: start;
+  border-top: 1px solid var(--border); min-height: 1.8rem; }
+.wk-striplabel { font-size: .64rem; color: var(--text-faint); text-transform: uppercase;
+  letter-spacing: .04em; padding: .35rem .5rem 0 0; text-align: right; }
+.wk-stripgrid { display: grid; grid-template-columns: repeat(var(--cols, 7), 1fr);
+  gap: 2px; padding: .2rem .2rem .3rem; }
+.wk-bar { border: 0; border-radius: 5px; background: var(--c); color: #fff; font-size: .74rem;
+  padding: .1rem .4rem; text-align: left; overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; cursor: pointer; }
+.wk-bar.free { background: var(--c-weak); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--c); }
+.wk-bar.open-left { border-top-left-radius: 0; border-bottom-left-radius: 0;
+  background-image: linear-gradient(to right, rgba(0,0,0,.25), transparent 18px); }
+.wk-bar.open-right { border-top-right-radius: 0; border-bottom-right-radius: 0;
+  background-image: linear-gradient(to left, rgba(0,0,0,.25), transparent 18px); }
+
+.wk-scroll { flex: 1; overflow-y: auto; }
+.wk-body { display: grid; grid-template-columns: var(--gutter-w) repeat(var(--cols, 7), 1fr);
+  position: relative; }
+.wk-hours { display: flex; flex-direction: column; }
+.wk-hour { position: relative; border-top: 1px solid var(--border); }
+.wk-hour span { position: absolute; top: -.55rem; right: .4rem; font-size: .66rem;
+  color: var(--text-faint); background: var(--bg); padding: 0 .2rem;
+  font-variant-numeric: tabular-nums; }
+.wk-col { position: relative; border-left: 1px solid var(--border); }
+.wk-col.today { background: var(--accent-weak); }
+.wk-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+.wk-event { position: absolute; border: 0; border-left: 3px solid var(--c); background: var(--c-weak);
+  border-radius: 5px; padding: .1rem .3rem; font-size: .74rem; text-align: left; cursor: pointer;
+  overflow: hidden; display: flex; flex-direction: column; line-height: 1.15; }
+/* Short enough that two lines do not fit: the time and the title share one,
+   which is the difference between "9:30" and "9:30 Standup". */
+.wk-event.short { flex-direction: row; align-items: baseline; gap: .3rem; }
+.wk-event:hover { filter: brightness(.97); }
+.wk-event.free { background: repeating-linear-gradient(135deg, var(--c-weak) 0 6px, transparent 6px 12px); }
+.wk-event.cancelled .wk-title { text-decoration: line-through; opacity: .7; }
+.wk-time { color: var(--text-muted); font-size: .66rem; font-variant-numeric: tabular-nums; }
+.wk-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.wk-now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--now); z-index: 4; }
+.wk-now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--now); }
+
+/* =========================================================================
+   Month
+   ========================================================================= */
+
+.month { display: flex; flex-direction: column; overflow: hidden; }
+.mo-head { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
+.mo-dow { text-align: center; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-muted); padding: .3rem 0; }
+/* minmax(0, 1fr), not 1fr: a bare 1fr is minmax(auto, 1fr), so one busy week
+   grows past its share and pushes the rest of the month off the bottom. */
+.mo-grid { flex: 1; display: grid; grid-template-rows: repeat(var(--weeks, 6), minmax(0, 1fr));
+  min-height: 0; }
+/* Clipped to its row. Both layers inside are grid items, and a grid item's
+   automatic minimum size is its content — so without this a week with more in
+   it than fits simply grows and pushes the rest of the month down. */
+.mo-week { position: relative; display: grid; min-height: 0; overflow: hidden; }
+.mo-cells { display: grid; grid-template-columns: repeat(7, 1fr); grid-area: 1 / 1;
+  border-bottom: 1px solid var(--border); min-height: 0; }
+.mo-cell { border-left: 1px solid var(--border); padding: .15rem .25rem; overflow: hidden;
+  display: flex; flex-direction: column; gap: 1px; min-height: 0; }
+.mo-cell.other { background: var(--bg-elev); color: var(--text-faint); }
+.mo-cell.today .mo-dnum span:first-child { background: var(--accent); color: #fff;
+  border-radius: 50%; width: 1.4rem; height: 1.4rem; display: inline-grid; place-items: center; }
+/* The gap under the date is the band the week's bars are drawn in — see
+   app.month.js. It is zero in a week with no long events, so an ordinary week
+   loses nothing to it. */
+.mo-dnum { display: flex; align-items: center; justify-content: space-between;
+  font-size: .78rem; font-variant-numeric: tabular-nums; height: 1.15rem;
+  margin-bottom: calc(var(--lanes, 0) * (1.15rem + 2px)); }
+.mo-week-no { font-size: .6rem; color: var(--text-faint); }
+/* The bars sit over the cells, so one can cross day boundaries; the lanes are
+   assigned across the whole month, so a bar keeps its line when the grid wraps. */
+/* The band lines up with the gap the cells leave: same row height, same gap,
+   and a top offset of exactly the date line above it. */
+.mo-bars { grid-area: 1 / 1; display: grid; grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(var(--lanes, 1), 1.15rem); gap: 2px;
+  padding: calc(.15rem + 1.15rem) .2rem 0; pointer-events: none; align-content: start; }
+.mo-bar { pointer-events: auto; border: 0; border-radius: 4px; background: var(--c); color: #fff;
+  font-size: .7rem; padding: 0 .35rem; text-align: left; overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; cursor: pointer; }
+.mo-bar.free { background: var(--c-weak); color: var(--text); box-shadow: inset 0 0 0 1px var(--c); }
+.mo-bar.open-left { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.mo-bar.open-right { border-top-right-radius: 0; border-bottom-right-radius: 0;
+  background-image: linear-gradient(to left, rgba(0,0,0,.28), transparent 16px); }
+.mo-chip { display: flex; align-items: center; gap: .25rem; border: 0; background: none;
+  font-size: .72rem; padding: 0 .15rem; cursor: pointer; text-align: left; border-radius: 4px; }
+.mo-chip:hover { background: var(--hover-tint); }
+.mo-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: 0 0 auto; }
+.mo-chip.free .mo-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+.mo-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mo-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mo-more { border: 0; background: none; color: var(--text-muted); font-size: .68rem;
+  cursor: pointer; text-align: left; padding: 0 .15rem; }
+.mo-more:hover { color: var(--accent); }
+
+/* =========================================================================
+   Modal
+   ========================================================================= */
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100;
+  display: grid; place-items: center; padding: 1rem; }
+.modal-card { background: var(--bg); border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: var(--shadow); width: min(560px, 100%); max-height: 90vh; display: flex;
+  flex-direction: column; overflow: hidden; }
+.modal-card.small { width: min(340px, 100%); }
+.modal-head { display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem;
+  border-bottom: 1px solid var(--border); }
+.modal-title { font-weight: 650; flex: 1; }
+.modal-body { padding: .8rem .9rem; overflow-y: auto; display: flex; flex-direction: column; gap: .55rem; }
+.modal-foot { display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem;
+  border-top: 1px solid var(--border); background: var(--bg-elev); }
+.modal-error { color: var(--danger); font-size: .82rem; }
+.modal-note { font-size: .78rem; color: var(--text-muted); background: var(--bg-elev);
+  border-radius: 6px; padding: .4rem .5rem; }
+
+.fld { display: flex; flex-direction: column; gap: .2rem; flex: 1; min-width: 0; }
+.fld.inline { flex-direction: row; align-items: center; gap: .4rem; font-size: .85rem; }
+.fld-row { display: flex; gap: .6rem; }
+.fld-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.fld-hint { font-size: .7rem; color: var(--text-faint); }
+.in { border: 1px solid var(--border-strong); background: var(--bg); color: var(--text);
+  border-radius: 7px; padding: .35rem .5rem; font-size: .88rem; font-family: inherit; width: 100%; }
+.in:focus { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
+.title-in { font-size: 1.05rem; font-weight: 600; }
+textarea.in { resize: vertical; }
+
+.people { display: flex; flex-direction: column; gap: 1px; }
+.person { display: flex; align-items: baseline; gap: .5rem; border: 0; background: none;
+  padding: .25rem .4rem; border-radius: 6px; cursor: pointer; text-align: left; font-size: .82rem; }
+.person:hover { background: var(--hover-tint); }
+.person-mail { color: var(--text-muted); font-size: .76rem; }
+.person-count { margin-left: auto; color: var(--text-faint); font-size: .7rem; }
+
+.fatal { padding: 3rem; max-width: 40rem; }
+.fatal h2 { margin: 0 0 .5rem; }
+
+/* --- Narrow --- */
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .view-switch button { padding: .3rem .45rem; font-size: .78rem; }
+  .filter-help { display: none; }
+  .chip-where { display: none; }
+}

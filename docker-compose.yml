@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:18
+    # A calendar is small: years of twenty calendars is tens of megabytes, not
+    # the tens of gigabytes meerail's mail store runs to. The defaults are
+    # therefore left alone here — this is the one place in the suite where
+    # Postgres does not need tuning.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-meercal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meercal}
+      POSTGRES_DB: ${POSTGRES_DB:-meercal}
+    networks: [meercal]
+    ports:
+      # On the host's loopback so the agent — which runs natively, beside your
+      # credentials — can reach it. The 127.0.0.1 prefix is load-bearing: drop
+      # it and Docker publishes on 0.0.0.0, straight through the host firewall
+      # to a database with the default password.
+      #
+      # 5433, not 5432: meerail's stack already has that one.
+      - "127.0.0.1:${MEERCAL_DB_PORT:-5433}:5432"
+    volumes:
+      # Postgres 18+ expects a single mount at /var/lib/postgresql (not .../data);
+      # this layout is what allows an in-place `pg_upgrade --link` later.
+      - meercal-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meercal} -d ${POSTGRES_DB:-meercal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  server:
+    build: .
+    image: meercal-server:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Container topology only. Everything else comes from meercal.toml, which
+      # is why nothing here sets a value it does not mean — an entry with a
+      # ${VAR:-default} fallback is always set, and would override the file.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
+    volumes:
+      # Read-only: the server reads its settings and never writes them.
+      - ./meercal.toml:/app/meercal.toml:ro
+    networks: [meercal]
+    ports:
+      - "${MEERCAL_BIND:-127.0.0.1}:${MEERCAL_PORT:-8010}:8000"
+    restart: unless-stopped
+
+networks:
+  meercal:
+
+volumes:
+  meercal-db:

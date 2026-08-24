@@ -1,0 +1,9 @@
+services:
+  website:
+    build: .
+    image: meercal-website
+    ports:
+      # Not 8010 — that's the meercal server, and 8080 is meerail's website, so
+      # all three can run on one machine.
+      - "${WEBSITE_PORT:-8081}:80"
+    restart: unless-stopped

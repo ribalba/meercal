@@ -1,0 +1,11 @@
+# meercal-agent — runs on your machine, owns the write path to every calendar
+# server. Overlaps with ../requirements.txt through the shared `core` package;
+# keep those pins in step.
+sqlalchemy==2.0.51
+pydantic==2.13.4
+pydantic-settings==2.7.0
+psycopg[binary]==3.3.4
+icalendar==7.3.0
+python-dateutil==2.9.0.post0
+tzdata==2026.3
+httpx==0.28.1               # CalDAV is HTTP: PROPFIND/REPORT/PUT over httpx

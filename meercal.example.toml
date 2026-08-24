@@ -1,0 +1,114 @@
+# meercal configuration — one file for the whole system.
+#
+#   cp meercal.example.toml meercal.toml && chmod 600 meercal.toml
+#
+# Both processes read this same file: the web app takes [database] and
+# [server], the agent takes [database] and [agent]. Each ignores the other's
+# section, so a machine running only one of them leaves the rest at its default.
+#
+# EVERY setting here can be overridden by an environment variable of the same
+# name in upper case — server.password is SERVER_PASSWORD, database.url is
+# DATABASE_URL. The environment wins over this file, and a .env beside it sits
+# between the two:
+#
+#   environment  >  .env  >  meercal.toml  >  built-in default
+#
+# That order is what lets a remote server run with no file at all.
+#
+# This file holds calendar passwords in plaintext. Keep it mode 0600; the
+# agent's --test refuses to pass if anyone else can read it.
+
+
+# --- database -----------------------------------------------------------------
+# The only channel between the agent and the web app.
+[database]
+# Port 5433, not 5432: meerail's Postgres already has that one and the two
+# stacks are meant to run side by side on the same laptop.
+url = "postgresql+psycopg://meercal:meercal@127.0.0.1:5433/meercal"
+
+
+# --- server -------------------------------------------------------------------
+[server]
+# Encrypts stored credentials and signs session cookies.
+# CHANGE THIS. Generate: python -c "import secrets;print(secrets.token_urlsafe(48))"
+secret_key = "dev-insecure-secret-change-me"
+
+# Password gating the web UI / REST API. Empty = open, which is right for a
+# localhost install; set it before exposing the server. Setting it also turns on
+# the HTTPS requirement for everything that is not loopback.
+password = ""
+
+# The zone the calendar is drawn in. "system" follows the host. Everything is
+# stored in UTC; this is only how it is displayed — and the one exception is
+# all-day events, which are dates and never move between zones.
+timezone = "system"
+
+# 1 = Monday (ISO 8601), 7 = Sunday. Also decides where the week rules fall in
+# the Ribbon view and which column the month grid starts on.
+week_start = 1
+
+# The hours the day grid shows before you scroll. Outside them the grid is still
+# there — events never hide — it just opens on the part of the day you work in.
+day_start = 8
+day_end = 20
+
+# Which view opens on a cold start: ribbon | week | month | day.
+default_view = "ribbon"
+
+# How far either side of today occurrences are materialised. Recurrence is
+# expanded into rows so a range query stays one index scan no matter how many
+# calendars are shown (see core/expand.py); this is how much of it exists at
+# any moment. The window rolls forward as you scroll past its edge.
+horizon_past_days = 730
+horizon_future_days = 1095
+
+# Trusted reverse proxies, if TLS is terminated in front of this. Without it
+# every request looks like it came from the proxy.
+trusted_proxies = []
+
+
+# --- meerail ------------------------------------------------------------------
+# The mail side of the suite. Optional, and read-only: meercal never writes to
+# meerail's database. With this set, the attendee field autocompletes from the
+# people you actually correspond with (meerail's `contacts` table), and mail
+# carrying an invitation can be turned into an event.
+[meerail]
+database_url = ""
+
+
+# --- agent --------------------------------------------------------------------
+# Only the agent reads this section. It is the only place calendar credentials
+# are configured, and it never leaves your machine.
+[agent]
+# Seconds between sync passes. CalDAV servers hand out sync tokens, so a pass
+# with nothing new costs one request per calendar.
+interval = 300
+
+# One block per calendar account. Repeat [[agent.account]] for as many as you
+# have — the whole point of this program is that there are a lot of them.
+#
+# kind = "icloud"  — Apple Calendar, shared with your family. Requires an
+#                    app-specific password from appleid.apple.com; your normal
+#                    password will not work, and neither will 2FA prompts.
+# kind = "google"  — Google Calendar over CalDAV. Requires an App Password with
+#                    2-Step Verification on, same as meerail needs for Gmail.
+# kind = "caldav"  — anything else: Nextcloud, Fastmail, Radicale, SOGo.
+#
+# [[agent.account]]
+# label = "Family"
+# kind = "icloud"
+# username = "you@icloud.com"
+# password = "abcd-efgh-ijkl-mnop"      # app-specific password
+# # url is filled in from `kind` for icloud/google; set it for plain caldav.
+# # url = "https://cloud.example.com/remote.php/dav"
+#
+# # Optional: only sync some of the calendars this account offers. Regex,
+# # matched against the calendar's display name. Left out, everything is synced
+# # and you hide what you do not want in the UI.
+# # only = "Family|Kita"
+#
+# [[agent.account]]
+# label = "Work"
+# kind = "google"
+# username = "you@example.com"
+# password = "app-password-here"

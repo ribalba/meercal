@@ -1,0 +1,15 @@
+# Live reload inside Docker. Bind-mounts the source over the image's copy and
+# restarts uvicorn on every edit.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+services:
+  server:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./app:/app/app
+      - ./core:/app/core
+      - ./tools:/app/tools
+      - ./meercal.toml:/app/meercal.toml:ro
+    ports:
+      # A port of its own, so a dev stack can sit beside a running one.
+      - "${MEERCAL_BIND:-127.0.0.1}:8011:8000"
