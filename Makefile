@@ -10,7 +10,7 @@ PY      := $(VENV)/bin/python
 PIP     := $(VENV)/bin/pip
 VERSION := $(shell cat VERSION)
 
-.PHONY: help up down logs build infra dev venv agent agent-test seed psql fmt test test-db version
+.PHONY: help up down logs build infra dev venv agent agent-test seed psql fmt test test-db desktop version
 
 help:
 	@echo "meercal $(VERSION):"
@@ -24,6 +24,7 @@ help:
 	@echo "  make agent-test - check every configured calendar account, then exit"
 	@echo "  make seed       - fill the database with a demo calendar set"
 	@echo "  make psql       - a shell on the database"
+	@echo "  make desktop    - run the Electron app against the local server"
 	@echo "  make test       - run the test suite"
 	@echo "  make test-db    - create the throwaway database the API tests need"
 
@@ -59,6 +60,9 @@ agent-test:
 
 seed:
 	$(PY) tools/seed_demo.py
+
+desktop:
+	cd electron && npm install && npm start
 
 psql:
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-meercal} -d $${POSTGRES_DB:-meercal}

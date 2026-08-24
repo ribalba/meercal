@@ -20,11 +20,18 @@
         <!-- The glyph is in a span of its own so the animation can turn *it*.
              Rotating the button turned its hover background and focus ring with
              it, which read as a spinning border. -->
-        <button class="icon-btn" id="btn-refresh" title="Sync now — ask the agent for a pass (.)"><span>↻</span></button>
+        <button class="icon-btn" id="btn-refresh" data-icon="refresh" title="Sync now — ask the agent for a pass (.)"></button>
       </div>
       <div class="sidebar-tools">
-        <button class="icon-btn" id="btn-theme" title="Light, dark, or follow the system">◐</button>
+        <button class="icon-btn" id="btn-theme" data-icon="theme" title="Light, dark, or follow the system"></button>
       </div>
+
+      <!-- The one thing you come here to do, at the size that says so. It sits
+           above the calendars rather than in the toolbar because the toolbar is
+           about *where you are looking*, and this is not. -->
+      <button class="create-btn" id="btn-new" title="New event (n)">
+        <span class="create-plus" data-icon="plus" data-icon-size="20"></span><span>Create</span>
+      </button>
 
       <!-- Only shown when an account has stopped syncing. A calendar that is
            quietly not updating looks exactly like a calendar with nothing in
@@ -41,8 +48,8 @@
       <header class="toolbar">
         <button class="btn" id="btn-today" title="Today (t)">Today</button>
         <div class="nav-pair">
-          <button class="icon-btn" id="btn-prev" title="Back (←)">‹</button>
-          <button class="icon-btn" id="btn-next" title="Forward (→)">›</button>
+          <button class="icon-btn" id="btn-prev" data-icon="left" title="Back (←)"></button>
+          <button class="icon-btn" id="btn-next" data-icon="right" title="Forward (→)"></button>
         </div>
         <h1 class="view-title" id="view-title"></h1>
         <span class="hidden-note" id="hidden-note" hidden></span>
@@ -57,24 +64,23 @@
           <button data-view="day" title="Day (d)">Day</button>
           <button data-view="year" title="Year — the shape of the whole year (y)">Year</button>
         </div>
-        <button class="btn primary" id="btn-new" title="New event (n)">New</button>
       </header>
 
       <div class="filter-region">
         <div class="filter-bar">
-          <span class="filter-icon">⌕</span>
+          <span class="filter-icon" data-icon="search"></span>
           <!-- `text`, not `search`: Chromium draws its own clear button inside a
                search input, and two crosses side by side is one too many. -->
           <input type="text" id="filter-input" autocomplete="off"
                  placeholder="Filter these calendars — words, cal:family, with:anna, is:span · Enter searches all of them" />
-          <button class="icon-btn" id="filter-clear" title="Clear" hidden>✕</button>
+          <button class="icon-btn" id="filter-clear" data-icon="close" data-icon-size="15" title="Clear" hidden></button>
           <label class="rx-toggle" title="Match with a POSIX regular expression">
             <input type="checkbox" id="regex-toggle" /> <span>Regex</span>
           </label>
           <!-- The filters used to sit under the bar as a row of chips. They
                were permanent furniture for something you learn once, so they
                are behind this instead — the same trade meerail makes. -->
-          <button class="icon-btn" id="filter-help-btn" title="What you can type in here">ⓘ</button>
+          <button class="icon-btn" id="filter-help-btn" data-icon="info" title="What you can type in here"></button>
         </div>
         <div class="search-results" id="search-results" hidden></div>
       </div>
@@ -87,7 +93,7 @@
     <div class="modal-card" id="filter-help-card">
       <div class="modal-head">
         <span class="modal-title">Filter and search</span>
-        <button class="icon-btn" id="filter-help-close" title="Close">✕</button>
+        <button class="icon-btn" id="filter-help-close" data-icon="close" title="Close"></button>
       </div>
       <div class="modal-body">
         <p class="help-lede">
@@ -177,10 +183,12 @@ rx:invoice.*2026 is:recurring</pre>
   </div>
 
   <script src="/static/js/app.core.js"></script>
+  <script src="/static/js/app.power.js"></script>
   <script src="/static/js/app.ribbon.js"></script>
   <script src="/static/js/app.week.js"></script>
   <script src="/static/js/app.month.js"></script>
   <script src="/static/js/app.year.js"></script>
+  <script src="/static/js/app.picker.js"></script>
   <script src="/static/js/app.editor.js"></script>
   <script src="/static/js/app.sets.js"></script>
   <script src="/static/js/app.search.js"></script>

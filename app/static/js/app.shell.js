@@ -40,7 +40,7 @@ App.shell = (() => {
       App.el("button", {
         class: "cal-solo",
         title: "Only this calendar (alt-click the row)",
-        text: "◎",
+        html: App.icon("solo", 14),
         onclick: (ev) => { ev.stopPropagation(); solo(cal.id); },
       }),
     );
@@ -75,7 +75,7 @@ App.shell = (() => {
           ),
           App.el("button", {
             class: "set-edit",
-            text: "✎",
+            html: App.icon("pencil", 15),
             title: "Rename it, move its key, change what is in it",
             onclick: (ev) => { ev.stopPropagation(); App.sets.open(s); },
           }),
@@ -255,6 +255,7 @@ App.shell = (() => {
   // --- start ----------------------------------------------------------------
 
   async function init() {
+    App.paintIcons();
     await App.load.state();
     renderSidebar();
 
@@ -291,8 +292,14 @@ App.shell = (() => {
     await show();
     App.keys.init();
     App.search.init();
-    setInterval(() => App.status.poll(), 30000);
-    App.status.poll();
+
+    // Nothing polls or refreshes while the window is behind another one; on the
+    // way back the calendar is reloaded rather than believed. See app.power.js,
+    // and electron/main.js for where the focus signal comes from.
+    App.power.init();
+    App.power.whenSuspended(() => App.status.stop());
+    App.power.whenResumed(() => { App.status.start(); refresh(); });
+    App.status.start();
   }
 
   return { init, show, setView, refresh, goTo, today, step, renderSidebar, setVisible, solo, applySet, VIEWS };
@@ -301,6 +308,21 @@ App.shell = (() => {
 /* Agent health, in the one place it matters: a calendar that has quietly
    stopped syncing looks exactly like a calendar with nothing in it. */
 App.status = {
+  // Every thirty seconds while the window is in front. Held so it can be
+  // stopped, which is the whole of this app's background cost.
+  timer: null,
+
+  start() {
+    this.stop();
+    this.timer = setInterval(() => this.poll(), 30000);
+    this.poll();
+  },
+
+  stop() {
+    clearInterval(this.timer);
+    this.timer = null;
+  },
+
   async poll() {
     let status;
     try { status = await App.api.get("/api/sync/status"); } catch (e) { return; }

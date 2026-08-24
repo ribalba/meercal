@@ -76,14 +76,25 @@ button { font-family: inherit; color: inherit; }
 .sidebar-toolbar .icon-btn, .sidebar-tools .icon-btn { -webkit-app-region: no-drag; }
 .sidebar-tools { display: flex; justify-content: flex-end; gap: .1rem; padding: 0 .75rem .4rem; }
 
-.icon-btn { background: none; border: 0; cursor: pointer; border-radius: 6px;
-  padding: .25rem .4rem; font-size: .95rem; line-height: 1.2; color: var(--text-muted); }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; cursor: pointer; border-radius: 6px;
+  padding: .25rem .4rem; font-size: .95rem; line-height: 1; color: var(--text-muted); }
 .icon-btn:hover { background: var(--hover-tint-strong); color: var(--text); }
 /* Only the glyph turns. Spinning the button spun its hover fill and its focus
    outline as well, and a rotating rounded rectangle reads as a bug. */
-#btn-refresh span { display: inline-block; }
-#btn-refresh.spin span { animation: spin 1s linear infinite; }
+#btn-refresh.spin svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* The Create button. Big, first, and the only filled thing in the sidebar —
+   with twenty calendars under it, the action has to win on shape rather than
+   on position alone. */
+.create-btn { display: flex; align-items: center; gap: .5rem; margin: 0 .75rem .7rem;
+  padding: .55rem .8rem; border: 1px solid var(--accent); border-radius: 22px;
+  background: var(--accent); color: #fff; font-size: .92rem; font-weight: 600;
+  cursor: pointer; box-shadow: var(--shadow); }
+.create-btn:hover { filter: brightness(1.06); }
+.create-btn:active { transform: translateY(1px); }
+.create-plus { display: inline-flex; }
 
 .agent-warning { margin: 0 .75rem .5rem; padding: .4rem .55rem; border-radius: 6px;
   background: light-dark(#fff4e5, #3a2a12); color: var(--warning); border: 1px solid var(--border);
@@ -106,7 +117,7 @@ button { font-family: inherit; color: inherit; }
 .cal-row.off .cal-dot { background: transparent; box-shadow: inset 0 0 0 2px var(--c); opacity: .6; }
 .cal-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-warn { color: var(--danger); font-weight: 700; }
-.cal-solo { opacity: 0; border: 0; background: none; cursor: pointer; font-size: .8rem;
+.cal-solo { opacity: 0; display: inline-flex; border: 0; background: none; cursor: pointer;
   color: var(--text-muted); padding: 0 .15rem; }
 .cal-row:hover .cal-solo { opacity: 1; }
 .cal-solo:hover { color: var(--accent); }
@@ -121,8 +132,8 @@ button { font-family: inherit; color: inherit; }
   padding: .3rem .5rem; border: 0; background: none; cursor: pointer; font-size: .86rem;
   text-align: left; }
 .set-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.set-edit { opacity: 0; border: 0; background: none; cursor: pointer; color: var(--text-muted);
-  padding: .2rem .45rem; font-size: .82rem; }
+.set-edit { opacity: 0; display: inline-flex; border: 0; background: none; cursor: pointer;
+  color: var(--text-muted); padding: .2rem .45rem; }
 .set-row:hover .set-edit { opacity: 1; }
 .set-edit:hover { color: var(--accent); }
 
@@ -132,7 +143,13 @@ button { font-family: inherit; color: inherit; }
 
 .shortcut-box { border-top: 1px solid var(--border); padding: .5rem .9rem .7rem;
   font-size: .74rem; color: var(--text-muted); max-height: 34vh; overflow-y: auto; }
-.shortcut-box:not(.open) .shortcut-row:nth-child(n+7) { display: none; }
+/* Collapsed, the box shows the first nine bindings — everything you reach for
+   without thinking. `?` or the "n more" button below opens the rest. The count
+   is +11 because the title is a child too. */
+.shortcut-box:not(.open) .shortcut-row:nth-child(n+11) { display: none; }
+.shortcut-more { border: 0; background: none; padding: .25rem 0 0; cursor: pointer;
+  color: var(--accent); font-size: .72rem; }
+.shortcut-more:hover { text-decoration: underline; }
 .shortcut-title { font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   font-size: .66rem; color: var(--sidebar-section); padding-bottom: .3rem; }
 .shortcut-row { display: flex; gap: .5rem; align-items: center; padding: .1rem 0; }
@@ -147,7 +164,7 @@ button { font-family: inherit; color: inherit; }
 .hidden-note { font-size: .74rem; color: var(--text-muted); background: var(--bg-elev);
   border: 1px solid var(--border); border-radius: 20px; padding: .1rem .5rem; }
 .nav-pair { display: flex; }
-.nav-pair .icon-btn { font-size: 1.1rem; padding: .1rem .45rem; }
+.nav-pair .icon-btn { padding: .25rem .35rem; }
 
 .btn { border: 1px solid var(--border-strong); background: var(--bg); border-radius: 7px;
   padding: .3rem .7rem; font-size: .84rem; cursor: pointer; }
@@ -168,7 +185,7 @@ button { font-family: inherit; color: inherit; }
 /* --- Filter --- */
 .filter-region { border-bottom: 1px solid var(--border); background: var(--bg); position: relative; }
 .filter-bar { display: flex; align-items: center; gap: .4rem; padding: .35rem .8rem; }
-.filter-icon { color: var(--text-muted); }
+.filter-icon { color: var(--text-muted); display: inline-flex; }
 #filter-input { flex: 1; border: 1px solid var(--border); background: var(--bg-elev);
   border-radius: 7px; padding: .3rem .6rem; font-size: .84rem; color: var(--text); min-width: 0; }
 #filter-input:focus { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
@@ -534,9 +551,15 @@ textarea.in { resize: vertical; }
 .yr-months { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem; }
 .yr-month { border: 1px solid var(--border); border-radius: 10px; padding: .5rem .55rem .6rem; }
-.yr-month-name { border: 0; background: none; font-weight: 620; font-size: .86rem;
-  cursor: pointer; padding: 0 0 .3rem; color: var(--text); }
+.yr-month-name { display: flex; align-items: center; gap: .4rem; border: 0; background: none;
+  font-weight: 620; font-size: .86rem; cursor: pointer; padding: 0 0 .3rem; color: var(--text); }
 .yr-month-name:hover { color: var(--accent); }
+/* The month number, which is also what `g 1`–`g 12` takes. */
+.yr-month-no { display: grid; place-items: center; min-width: 1.25rem; height: 1.25rem;
+  padding: 0 .25rem; border-radius: 999px; background: var(--bg-elev);
+  border: 1px solid var(--border); color: var(--text-muted); font-size: .68rem;
+  font-weight: 700; font-variant-numeric: tabular-nums; }
+.yr-month-name:hover .yr-month-no { border-color: var(--accent); color: var(--accent); }
 .yr-dows { display: grid; grid-template-columns: repeat(7, 1fr); font-size: .6rem;
   color: var(--text-faint); text-align: center; padding-bottom: .15rem; }
 .yr-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
@@ -553,3 +576,49 @@ textarea.in { resize: vertical; }
 .yr-dnum { line-height: 1; }
 .yr-dots { display: flex; gap: 1px; height: 3px; align-items: center; }
 .yr-dots i { width: 3px; height: 3px; border-radius: 50%; background: var(--c); display: block; }
+
+
+/* =========================================================================
+   When: the date and time pills, and what drops out of them
+   ========================================================================= */
+
+.when-row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.when-dash { color: var(--text-muted); padding: 0 .1rem; }
+.pill { border: 1px solid transparent; background: var(--bg-elev); border-radius: 8px;
+  padding: .35rem .6rem; font-size: .88rem; cursor: pointer; color: var(--text);
+  font-variant-numeric: tabular-nums; }
+.pill:hover { background: var(--hover-tint-strong); }
+.pill:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+/* The date carries the weekday, so it is the wide one and reads as a sentence;
+   the times are numbers and are sized as numbers. */
+.pill-date { font-weight: 550; }
+.pill-time { min-width: 4.2rem; text-align: center; }
+.fld.inline.all-day { margin-top: .45rem; color: var(--text-muted); }
+
+.pop { position: fixed; z-index: 200; background: var(--bg); border: 1px solid var(--border-strong);
+  border-radius: 10px; box-shadow: var(--shadow); padding: .5rem; }
+.pop-head { display: flex; align-items: center; gap: .25rem; padding: .1rem .2rem .45rem; }
+.pop-month { flex: 1; font-weight: 650; font-size: .9rem; }
+.pop-nav { border: 0; background: none; cursor: pointer; color: var(--text-muted);
+  font-size: 1.05rem; line-height: 1; padding: .1rem .4rem; border-radius: 6px; }
+.pop-nav:hover { background: var(--hover-tint); color: var(--text); }
+.pop-days { display: grid; grid-template-columns: repeat(7, 2rem); gap: 1px; }
+.pop-dow { text-align: center; font-size: .64rem; text-transform: uppercase;
+  letter-spacing: .03em; color: var(--text-faint); padding-bottom: .2rem; }
+.pop-day { height: 2rem; border: 0; background: none; border-radius: 50%; cursor: pointer;
+  font-size: .82rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.pop-day:hover { background: var(--hover-tint-strong); }
+.pop-day.other { color: var(--text-faint); }
+/* Today is outlined, the chosen day is filled: two different statements, and a
+   month where they coincide should still say both. */
+.pop-day.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.pop-day.on { background: var(--accent); color: #fff; font-weight: 650; }
+
+.pop-times { max-height: 15rem; overflow-y: auto; min-width: 11rem; }
+.pop-time { display: flex; width: 100%; align-items: baseline; justify-content: space-between;
+  gap: 1rem; border: 0; background: none; cursor: pointer; padding: .3rem .5rem;
+  border-radius: 6px; font-size: .85rem; color: var(--text); text-align: left;
+  font-variant-numeric: tabular-nums; }
+.pop-time:hover { background: var(--hover-tint); }
+.pop-time.on { background: var(--accent-weak); font-weight: 620; }
+.pop-dur { color: var(--text-muted); font-size: .74rem; }

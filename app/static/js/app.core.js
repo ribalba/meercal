@@ -288,3 +288,43 @@ App.wheel = {
     return null;
   },
 };
+
+
+/* Icons, as inline SVG.
+
+   The chrome used typographic stand-ins for a while — ⌕ for search, ↻ for
+   refresh — and they are a poor deal: the glyph is whatever the user's font
+   decides it is, it sits on the text baseline rather than in the middle of its
+   button, and ⌕ in particular renders as an unrecognisable blob in most UI
+   fonts. These are drawn instead, in one weight, and they take `currentColor`
+   so they follow whatever the button is already doing about hover and theme. */
+App.icons = {
+  search: '<circle cx="11" cy="11" r="7"/><line x1="16.6" y1="16.6" x2="21" y2="21"/>',
+  refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><polyline points="20.5 3.5 20.5 9 15 9"/>',
+  // A disc lit from one side: light, dark, or whatever the system says.
+  theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor" stroke="none"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><line x1="12" y1="11" x2="12" y2="16.5"/>'
+      + '<circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/>',
+  close: '<line x1="6.5" y1="6.5" x2="17.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="6.5" y2="17.5"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  left: '<polyline points="14.5 5 8 12 14.5 19"/>',
+  right: '<polyline points="9.5 5 16 12 9.5 19"/>',
+  pencil: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><line x1="14.5" y1="7.5" x2="17.5" y2="10.5"/>',
+  solo: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+};
+
+App.icon = (name, size = 17) => {
+  const body = App.icons[name];
+  if (!body) return "";
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+    stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+};
+
+/* Fill everything carrying `data-icon`. Called once at boot, and again by
+   anything that builds buttons of its own after it. */
+App.paintIcons = (root = document) => {
+  root.querySelectorAll("[data-icon]").forEach((el) => {
+    el.innerHTML = App.icon(el.dataset.icon, Number(el.dataset.iconSize) || 17);
+  });
+};

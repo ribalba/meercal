@@ -331,11 +331,19 @@ App.ribbon = (() => {
 
   // --- "day 4 of 19" --------------------------------------------------------
 
-  /* Row tops, cached. Read from the nodes themselves rather than found again
-     by selector: the grid places several items on one row and only the row's
-     own cell knows where it starts. */
+  /* Row tops, cached, *in the scroller's own coordinates* — which is what
+     `scrollTop` speaks and therefore the only thing worth storing.
+
+     `offsetTop` alone is not that: it is measured from the nearest positioned
+     ancestor, and #stage is not positioned, so it comes back relative to the
+     document — toolbar and filter bar included. Scrolling to it overshot by the
+     height of the page furniture, which is how pressing `t` put today above the
+     top of the view and behind the bars. Subtracting the grid's own offsetTop
+     cancels whatever that ancestor is. */
   function measure() {
-    rows.forEach((r) => { r.top = r.node ? r.node.offsetTop : 0; });
+    const grid = root.firstElementChild;
+    const base = grid ? grid.offsetTop : 0;
+    rows.forEach((r) => { r.top = r.node ? r.node.offsetTop - base : 0; });
   }
 
   /* The day the reader is actually looking at: the last row whose top has
@@ -420,13 +428,19 @@ App.ribbon = (() => {
     if (!row) return false;
     const entry = rows.find((r) => r.row === row);
     if (!entry || !entry.node) return false;
-    const top = entry.node.offsetTop;
+    const grid = root.firstElementChild;
+    const top = entry.node.offsetTop - (grid ? grid.offsetTop : 0);
     entry.top = top;
+    // Clear the sticky month header as well: it sits at the top of the scroller
+    // and would otherwise cover the very row being scrolled to. Measured rather
+    // than assumed — it is one line of text whose height follows the font.
+    const sticky = root.querySelector(".rb-month");
+    const clearance = (sticky ? sticky.offsetHeight : 0) + 10;
     // The scroll this causes is ours, not the reader's: it must not be read as
     // "they have reached the edge, slide the window", which is how one Today
     // used to turn into a run of slides and a view that would not settle.
     suppressUntil = performance.now() + 400;
-    root.scrollTo({ top: Math.max(top - 12, 0), behavior });
+    root.scrollTo({ top: Math.max(top - clearance, 0), behavior });
     // Say where we went. The scroll events this causes are suppressed above,
     // so this is the only thing that tells the toolbar and the other views
     // which day the Ribbon is now showing.

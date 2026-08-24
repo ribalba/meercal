@@ -228,12 +228,13 @@
             <div class="landing-card-icon"><i class="keyboard icon"></i></div>
             <h3>Keyboard first</h3>
             <p>
-              <kbd>r</kbd> <kbd>w</kbd> <kbd>m</kbd> <kbd>d</kbd> for the views,
-              <kbd>t</kbd> for today, <kbd>1</kbd>–<kbd>9</kbd> for calendar
-              sets, <kbd>/</kbd> to filter, <kbd>n</kbd> for a new event,
-              <kbd>q</kbd> to expand the quiet days. The cheat sheet in the
-              sidebar is generated from the same table that binds the keys, so it
-              cannot drift.
+              <kbd>t</kbd> for today, <kbd>r</kbd> <kbd>w</kbd> <kbd>m</kbd>
+              <kbd>d</kbd> <kbd>y</kbd> for the views, <kbd>g</kbd> then a month
+              number to jump, <kbd>0</kbd>–<kbd>9</kbd> for calendar sets,
+              <kbd>/</kbd> to filter, <kbd>n</kbd> for a new event, <kbd>q</kbd>
+              to expand the quiet days. The cheat sheet in the sidebar is
+              generated from the same table that binds the keys, so it cannot
+              drift.
             </p>
           </div>
         </article>
@@ -437,6 +438,32 @@ password = "abcd-efgh-ijkl-mnop"</pre>
             <pre class="landing-code">make venv
 make agent-test   # prove the connections
 make agent        # sync, every 5 minutes</pre>
+          </div>
+        </article>
+      </div>
+
+      <div class="landing-grid" style="margin-top:1.5rem">
+        <article class="landing-card landing-card-wide">
+          <div class="landing-card-body">
+            <div class="landing-card-wide-inner">
+              <div class="landing-card-wide-copy">
+                <div class="landing-card-icon"><i class="desktop icon"></i></div>
+                <h3>Or run it as a desktop app</h3>
+                <p>
+                  The same Electron shell meerail and meerato have. It adds the
+                  two things a browser tab cannot: it tells the page when the
+                  window is <strong>behind another one</strong> — not hidden,
+                  just not the app you are in — so meercal stands its polling
+                  down and reloads when you come back, and it
+                  <strong>spell checks</strong> the event panel.
+                </p>
+              </div>
+              <div class="landing-card-wide-aside">
+                <pre class="landing-code">make desktop            # run it
+cd electron
+make distinstall        # and put it in your app menu</pre>
+              </div>
+            </div>
           </div>
         </article>
       </div>

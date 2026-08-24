@@ -120,9 +120,14 @@ App.year = (() => {
     const box = App.el("div", { class: "yr-month" },
       App.el("button", {
         class: "yr-month-name",
-        text: first.toLocaleDateString(undefined, { month: "long" }),
+        title: `Open ${first.toLocaleDateString(undefined, { month: "long" })} — or press g ${month + 1}`,
         onclick: () => App.shell.goTo(first, "month"),
-      }),
+      },
+        // The number, in a bubble: it is what `g 1`–`g 12` takes, so the view
+        // that shows all twelve months is where that key ought to be legible.
+        App.el("span", { class: "yr-month-no", text: String(month + 1) }),
+        App.el("span", { text: first.toLocaleDateString(undefined, { month: "long" }) }),
+      ),
     );
     const head = App.el("div", { class: "yr-dows" });
     for (let i = 0; i < 7; i++) {

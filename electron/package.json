@@ -1,0 +1,48 @@
+{
+  "name": "meercal-desktop",
+  "productName": "meercal",
+  "version": "0.1.0",
+  "description": "Desktop wrapper for the meercal calendar.",
+  "main": "main.js",
+  "desktopName": "meercal.desktop",
+  "homepage": "https://meercal.com/",
+  "author": {
+    "name": "Didi Hoffmann",
+    "email": "didi@ribalba.de"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron . --class=meercal",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "42.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.meercal.desktop",
+    "productName": "meercal",
+    "directories": { "buildResources": "build", "output": "dist" },
+    "files": ["main.js", "package.json", "build/icon.png"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Office",
+      "icon": "build/icon.png",
+      "synopsis": "Desktop wrapper for the meercal calendar.",
+      "syncDesktopName": true,
+      "executableName": "meercal",
+      "desktop": {
+        "entry": { "StartupWMClass": "meercal" }
+      }
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}

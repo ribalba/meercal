@@ -35,6 +35,17 @@ App.editor = (() => {
     );
   }
 
+  /* iCalendar's all-day DTEND is the day *after* the last one. The panel shows
+     the last day, because that is the one people mean by "until". */
+  function nextDay(value) {
+    if (!value) return value;
+    const [y, m, d] = value.slice(0, 10).split("-").map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    return App.time.ymd(next);
+  }
+
+  const hhmm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
   function localValue(date) {
     const p = (n) => String(n).padStart(2, "0");
     return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}` +
@@ -51,18 +62,108 @@ App.editor = (() => {
     return App.state.calendars.filter((c) => !c.read_only);
   }
 
-  function build(event, detail) {
+  function build(event, detail, seed = null) {
     const cals = writableCalendars();
     const readOnly = event && event.read_only;
-    const start = event ? T().parse(event.start) : new Date();
-    const end = event ? T().parse(event.end) : new Date(start.getTime() + 3600000);
+    const start = event ? T().parse(event.start) : (seed ? seed.start : new Date());
+    let end = event ? T().parse(event.end) : (seed ? seed.end : new Date(start.getTime() + 3600000));
+    // Shown as the last day rather than the exclusive end — see nextDay().
+    if (event && event.all_day) end = T().addDays(end, -1);
 
     const title = App.el("input", { class: "in title-in", value: event ? event.title : "", placeholder: "Title" });
     const calSelect = App.el("select", { class: "in" },
       cals.map((c) => App.el("option", { value: String(c.id), selected: event && event.cal === c.id, text: c.name })));
-    const allDay = App.el("input", { type: "checkbox", checked: event ? event.all_day : false });
-    const startIn = App.el("input", { type: "datetime-local", class: "in", value: localValue(start) });
-    const endIn = App.el("input", { type: "datetime-local", class: "in", value: localValue(end) });
+    /* --- when ---------------------------------------------------------------
+
+       A date pill and two time pills rather than one `datetime-local`: that
+       control is two decisions in one field and every browser draws it
+       differently. Here the date opens a month you can see and a time opens a
+       list you can scroll, with each end time labelled by the length it makes.
+
+       All day is a different shape, not a disabled version of the same one: an
+       all-day event has no times, so the time pills go and a second date pill
+       arrives. Leaving a time control on screen for something that has no time
+       invites setting one and then wondering why it was ignored. */
+    const when = {
+      allDay: Boolean(event && event.all_day),
+      startDate: T().ymd(start),
+      startTime: hhmm(start),
+      endDate: T().ymd(end),
+      endTime: hhmm(end),
+    };
+    const whenRow = App.el("div", { class: "when-row" });
+    const allDay = App.el("input", { type: "checkbox", checked: when.allDay });
+
+    function pill(cls, text, onclick, title) {
+      return App.el("button", { class: `pill ${cls}`, text, type: "button", title, onclick });
+    }
+
+    function longDate(key) {
+      return T().parse(`${key}T00:00:00`)
+        .toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    }
+
+    const shiftDate = (key, days) => T().ymd(T().addDays(T().parse(`${key}T00:00:00`), days));
+
+    function paintWhen() {
+      const nodes = [
+        pill("pill-date", longDate(when.startDate), (e) =>
+          App.picker.dateMenu(e.currentTarget, when.startDate, (key) => {
+            // Moving the start moves the end with it: the length of the event
+            // is what somebody has in mind, not its far edge.
+            const days = T().daysBetween(T().parse(`${when.startDate}T00:00:00`),
+                                         T().parse(`${key}T00:00:00`));
+            when.startDate = key;
+            when.endDate = shiftDate(when.endDate, days);
+            paintWhen();
+          })),
+      ];
+
+      if (when.allDay) {
+        nodes.push(App.el("span", { class: "when-dash", text: "–" }));
+        nodes.push(pill("pill-date", longDate(when.endDate), (e) =>
+          App.picker.dateMenu(e.currentTarget, when.endDate, (key) => {
+            // An end before the start is not a shorter event, it is a mistake.
+            when.endDate = key < when.startDate ? when.startDate : key;
+            paintWhen();
+          }), "The last day, inclusive"));
+      } else {
+        nodes.push(pill("pill-time", when.startTime, (e) =>
+          App.picker.timeMenu(e.currentTarget, when.startTime, {
+            onPick: (value) => {
+              const delta = App.picker.minutesOf(value) - App.picker.minutesOf(when.startTime);
+              when.startTime = value;
+              // Carry the end along, rolling over midnight if it has to.
+              const endAt = App.picker.minutesOf(when.endTime) + delta;
+              when.endTime = App.picker.label(endAt);
+              if (endAt >= 1440) when.endDate = shiftDate(when.endDate, 1);
+              if (endAt < 0) when.endDate = shiftDate(when.endDate, -1);
+              paintWhen();
+            },
+          })));
+        nodes.push(App.el("span", { class: "when-dash", text: "–" }));
+        const overnight = when.endDate !== when.startDate;
+        nodes.push(pill("pill-time", when.endTime + (overnight ? " +1" : ""), (e) =>
+          App.picker.timeMenu(e.currentTarget, when.endTime, {
+            from: App.picker.minutesOf(when.startTime),
+            onPick: (value, nextDay) => {
+              when.endTime = value;
+              when.endDate = nextDay ? shiftDate(when.startDate, 1) : when.startDate;
+              paintWhen();
+            },
+          }), overnight ? "Ends the next day" : ""));
+      }
+      whenRow.replaceChildren(...nodes);
+    }
+
+    allDay.addEventListener("change", (e) => {
+      when.allDay = e.currentTarget.checked;
+      // An all-day event that came from a timed one covers the days it touched.
+      if (when.allDay && when.endDate === when.startDate) when.endDate = when.startDate;
+      paintWhen();
+    });
+    paintWhen();
+
     const location = App.el("input", { class: "in", value: event ? event.location || "" : "", placeholder: "Where" });
     const description = App.el("textarea", { class: "in", rows: "4", text: (detail && detail.description) || "" });
     // A rule the presets do not cover — "every Tuesday", "the last Friday of
@@ -98,9 +199,11 @@ App.editor = (() => {
       const body = {
         calendar_id: Number(calSelect.value),
         title: title.value.trim() || "(no title)",
-        start: startIn.value,
-        end: endIn.value,
-        all_day: allDay.checked,
+        // All-day sends dates, with DTEND the day after the last one — the
+        // panel shows the last day, because that is what "until" means.
+        start: when.allDay ? when.startDate : `${when.startDate}T${when.startTime}`,
+        end: when.allDay ? nextDay(when.endDate) : `${when.endDate}T${when.endTime}`,
+        all_day: when.allDay,
         location: location.value.trim(),
         description: description.value,
         rrule: repeat.value,
@@ -134,7 +237,7 @@ App.editor = (() => {
       App.el("div", { class: "modal-head" },
         cal ? App.el("span", { class: "cal-dot", style: `--c:${cal.color}` }) : null,
         App.el("span", { class: "modal-title", text: event ? "Event" : "New event" }),
-        App.el("button", { class: "icon-btn", text: "✕", onclick: close }),
+        App.el("button", { class: "icon-btn", html: App.icon("close"), onclick: close }),
       ),
       App.el("div", { class: "modal-body" },
         title,
@@ -142,8 +245,11 @@ App.editor = (() => {
           field("Calendar", calSelect),
           field("Repeats", repeat),
         ),
-        App.el("label", { class: "fld inline" }, allDay, App.el("span", { text: "All day" })),
-        App.el("div", { class: "fld-row" }, field("Start", startIn), field("End", endIn)),
+        App.el("div", { class: "fld" },
+          App.el("span", { class: "fld-label", text: "When" }),
+          whenRow,
+          App.el("label", { class: "fld inline all-day" }, allDay, App.el("span", { text: "All day" })),
+        ),
         field("Where", location),
         field("Invite", attendees, App.state.meerail ? "from the people you write to in meerail" : ""),
         people,
@@ -175,15 +281,13 @@ App.editor = (() => {
     mount(build(Object.assign({}, event, detail || {}), detail));
   }
 
-  function create(when) {
-    const start = when || new Date(new Date().setMinutes(0, 0, 0) + 3600000);
+  /* `at` is where the click landed — double-clicking 14:00 on a Tuesday should
+     not then ask what time was meant. Passed into the panel rather than poked
+     into it afterwards, so the pills are right on first paint. */
+  function create(at) {
+    const start = at || new Date(new Date().setMinutes(0, 0, 0) + 3600000);
     const end = new Date(start.getTime() + 3600000);
-    mount(build(null, null));
-    // Fill the times we were opened with — double-clicking 14:00 on a Tuesday
-    // should not then ask what time you meant.
-    const [startIn, endIn] = modal.querySelectorAll('input[type="datetime-local"]');
-    startIn.value = localValue(start);
-    endIn.value = localValue(end);
+    mount(build(null, null, { start, end }));
   }
 
   return { open, create, close, get current() { return current; } };

@@ -113,7 +113,7 @@ App.sets = (() => {
     mount(App.el("div", { class: "modal-card", onclick: (e) => e.stopPropagation() },
       App.el("div", { class: "modal-head" },
         App.el("span", { class: "modal-title", text: editing ? "Edit set" : "New set" }),
-        App.el("button", { class: "icon-btn", text: "✕", onclick: close }),
+        App.el("button", { class: "icon-btn", html: App.icon("close"), onclick: close }),
       ),
       App.el("div", { class: "modal-body" },
         App.el("label", { class: "fld" }, App.el("span", { class: "fld-label", text: "Name" }), name),

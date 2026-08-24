@@ -141,9 +141,10 @@ open it the way it opens Gmail for meerail. Two ways in:
 | `d` | Day | One column |
 | `y` | Year | Twelve months, under a band of every long event in the year |
 
-Other keys: `t` today · `←`/`→` back and forward · `0`–`9` a calendar set (`0` means
-everything, with or without a set on it) · `/` filter · `n` new event · `q` expand the quiet
-days · `.` sync now · `?` the rest. The cheat sheet in the sidebar is generated from the table
+Other keys: `t` today · `←`/`→` back and forward · `g` then `1`–`12` jump to a month
+(a leading `1` waits a moment for its second digit, so `g 9` is instant and `g 12` works) ·
+`0`–`9` a calendar set (`0` means everything, with or without a set on it) · `/` filter ·
+`n` new event · `q` expand the quiet days · `.` sync now · `?` the rest. The cheat sheet in the sidebar is generated from the table
 that binds them, so it cannot drift.
 
 The **mouse wheel pages** in every view but the Ribbon — which is one continuous scroll and
@@ -171,6 +172,26 @@ Tick **Regex** and the pattern goes to Postgres as a POSIX regular expression (`
 trigram-indexed column, so `standup|jour fixe` costs what a word costs. Press **Enter** and
 the same query becomes a search across *every* calendar, including the ones you have switched
 off — hiding is about the drawing, never about the data.
+
+## The desktop app
+
+An Electron shell, the same one meerail and meerato have:
+
+```bash
+make desktop                                   # npm install && npm start
+cd electron && make distinstall                # build and register it with the desktop
+```
+
+It is a window around the same web app, so nothing moves — but it adds the two
+things a browser tab cannot. It reports the window's **focus** to the page,
+which is how meercal knows it is behind another window rather than merely
+hidden, and stands its polling down until you come back (then reloads, because
+the agent has been syncing all along). And it **spell checks** the event
+panel's title, location and notes.
+
+`MEERCAL_URL` points it somewhere other than `http://localhost:8010`; see
+[`electron/README.md`](electron/README.md) for the installers and what
+`distinstall` puts where.
 
 ## Working with meerail
 
@@ -238,7 +259,6 @@ Not there yet:
   iTIP mail yet.
 - **Google OAuth** is implemented but has not been run against a live account.
 - **Drag to move or resize.** Everything goes through the event panel for now.
-- **An Electron shell**, as meerail and meerato have.
 
 ## License
 
