@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/static/img/logo.svg" width="120" alt="meercal logo" />
+  <img src="app/static/img/logo.png" width="180" alt="meercal logo" />
 </p>
 
 <h1 align="center">meercal</h1>
@@ -139,10 +139,24 @@ open it the way it opens Gmail for meerail. Two ways in:
 | `w` | Week | The time grid, with long events running across it |
 | `m` | Month | Six weeks, with bars that keep their lane when the grid wraps |
 | `d` | Day | One column |
+| `y` | Year | Twelve months, under a band of every long event in the year |
 
-Other keys: `t` today · `←`/`→` back and forward · `1`–`9` a calendar set · `0` all calendars
-· `/` filter · `n` new event · `q` expand the quiet days · `.` sync now · `?` the rest. The
-cheat sheet in the sidebar is generated from the table that binds them, so it cannot drift.
+Other keys: `t` today · `←`/`→` back and forward · `0`–`9` a calendar set (`0` means
+everything, with or without a set on it) · `/` filter · `n` new event · `q` expand the quiet
+days · `.` sync now · `?` the rest. The cheat sheet in the sidebar is generated from the table
+that binds them, so it cannot drift.
+
+The **mouse wheel pages** in every view but the Ribbon — which is one continuous scroll and
+has nowhere to page to. In the week and day grids it scrolls the hours first and only changes
+the date once it runs out of them, so neither gesture costs the other.
+
+### Sets
+
+A set is a named group of calendars with a number key on it — the answer to having twenty of
+them. Click one to apply it, the pencil to change it: rename, move its key, tick what belongs
+in it. A key belongs to one set, so giving `3` to a second set takes it off the first rather
+than leaving two that both answer to it. Sets are listed in key order, which puts `0` at the
+top.
 
 ## Filtering and search
 

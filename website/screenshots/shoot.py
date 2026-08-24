@@ -38,7 +38,7 @@ SETTLE = 1400
 def boot(page, view: str) -> None:
     page.goto(URL, wait_until="networkidle")
     page.wait_for_timeout(600)
-    page.keyboard.press({"ribbon": "r", "week": "w", "month": "m", "day": "d"}[view])
+    page.keyboard.press({"ribbon": "r", "week": "w", "month": "m", "day": "d", "year": "y"}[view])
     page.wait_for_timeout(SETTLE)
 
 
@@ -80,6 +80,12 @@ def month(page):
 
 
 @register
+def year(page):
+    boot(page, "year")
+    shot(page, "year")
+
+
+@register
 def spans(page):
     """The Ribbon with everything but the long events filtered away."""
     boot(page, "ribbon")
@@ -96,6 +102,17 @@ def search(page):
     page.keyboard.press("Enter")
     page.wait_for_timeout(SETTLE)
     shot(page, "search")
+
+
+@register
+def sets(page):
+    """The set editor — the answer to "how do I change what is in a set"."""
+    boot(page, "ribbon")
+    page.hover(".set-row")
+    page.click(".set-row .set-edit")
+    page.wait_for_timeout(600)
+    shot(page, "sets")
+    page.keyboard.press("Escape")
 
 
 @register

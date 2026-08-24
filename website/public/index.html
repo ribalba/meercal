@@ -6,8 +6,8 @@
   <title>meercal — a calendar for people who have too many calendars</title>
   <meta name="description" content="meercal is a self-hosted calendar client for technologists. The Ribbon view draws time as one continuous strip, so a three-week event is one bar instead of three. Apple Calendar, CalDAV and Google, many calendars at once, everything in PostgreSQL." />
   <meta name="theme-color" content="#1d6ff2" />
-  <link rel="icon" href="/img/logo.svg" />
-  <link rel="apple-touch-icon" href="/img/logo.svg" />
+  <link rel="icon" href="/img/logo-square.png" />
+  <link rel="apple-touch-icon" href="/img/logo-square.png" />
 
   <!-- Heavy stylesheet loaded non-render-blocking, as on the meerail site. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.css" media="print" onload="this.media='all'" />
@@ -23,7 +23,7 @@
     <header class="landing-nav" id="top">
       <div class="landing-nav-inner">
         <a class="landing-brand" href="/">
-          <img src="/img/logo.svg" alt="" />
+          <img src="/img/logo-square.png" alt="" />
           <span>meercal</span>
         </a>
         <nav class="landing-nav-links">
@@ -40,7 +40,7 @@
 
     <!-- Hero -->
     <section class="landing-hero">
-      <img src="/img/logo.svg" alt="The meercal meerkat" class="landing-logo" />
+      <img src="/img/logo.png" width="640" height="611" alt="The meercal meerkat, holding a calendar" class="landing-logo" />
       <div class="landing-hero-copy">
         <h1 class="landing-title">A calendar for people who have too&nbsp;many&nbsp;calendars.</h1>
         <p class="landing-subtitle">
@@ -138,9 +138,12 @@
             <p>
               You do not think in calendars, you think in situations. Group them
               into <strong>sets</strong> — Work, Family, the release — and switch
-              with a number key. Alt-click any calendar to <strong>solo</strong>
-              it and see just that one, the way a layer solo works in an editor;
-              alt-click again and the previous set comes back.
+              with a number key; <kbd>0</kbd> always means everything. A set is
+              something you keep, so it is something you can change: rename it,
+              move its key, add the calendar you only started using last week.
+              Alt-click any calendar to <strong>solo</strong> it, the way a layer
+              solo works in an editor; alt-click again and the previous set
+              comes back.
             </p>
           </div>
         </article>
@@ -258,8 +261,11 @@
               Week, month and day are all there, and they are the right drawing
               for “what is my Tuesday like”. They just do not chop the long
               things up: bars run continuously across the week, and a bar that
-              continues past the edge says so. Light and dark, following the
-              system or pinned.
+              continues past the edge says so. The <strong>year</strong> opens
+              with every long event of the year laid across one twelve-month
+              axis. The wheel pages between them — in the week and day grids it
+              scrolls the hours first and pages when it runs out. Light and
+              dark, following the system or pinned.
             </p>
           </div>
         </article>
@@ -309,6 +315,28 @@
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
           </button>
           <figcaption>Month</figcaption>
+        </figure>
+
+        <figure class="landing-shot">
+          <button type="button" class="landing-shot-btn"
+                  data-full="/img/screenshots/year.png"
+                  data-caption="&lt;strong&gt;Year.&lt;/strong&gt; Twelve months is the easy half. The band above them is the useful half: every long event of the year on one axis, which is the question you actually have at this zoom — when am I away, when is the school shut, which month has nothing in it.">
+            <img src="/img/screenshots/year.png" width="2880" height="1800" loading="lazy" decoding="async"
+                 alt="The meercal year view: a band of horizontal bars for the year's long events above twelve mini-month grids with tinted days." />
+            <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+          </button>
+          <figcaption>Year</figcaption>
+        </figure>
+
+        <figure class="landing-shot">
+          <button type="button" class="landing-shot-btn"
+                  data-full="/img/screenshots/sets.png"
+                  data-caption="&lt;strong&gt;A set, being edited.&lt;/strong&gt; A name, a number key — and the key says which set currently answers to it, because taking one is allowed and taking it silently is not.">
+            <img src="/img/screenshots/sets.png" width="2880" height="1800" loading="lazy" decoding="async"
+                 alt="The meercal set editor: a name field, a row of number keys with 0 selected, and a checklist of the seven calendars." />
+            <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+          </button>
+          <figcaption>Calendar sets</figcaption>
         </figure>
 
         <figure class="landing-shot">

@@ -18,7 +18,7 @@ window.App = window.App || {};
 
 App.shell = (() => {
   const T = () => App.time;
-  const VIEWS = { ribbon: "Ribbon", week: "Week", month: "Month", day: "Day" };
+  const VIEWS = { ribbon: "Ribbon", week: "Week", month: "Month", day: "Day", year: "Year" };
 
   let stage = null;
   let lastVisible = null;   // what to restore when a solo is undone
@@ -54,14 +54,31 @@ App.shell = (() => {
 
     if (App.state.sets.length) {
       nodes.push(App.el("div", { class: "tree-section", text: "Sets" }));
-      App.state.sets.forEach((s) => {
-        nodes.push(App.el("button", {
-          class: "set-row",
-          onclick: () => applySet(s.id),
-          title: `${s.calendars.length} calendars`,
-        },
-          App.el("span", { class: "set-name", text: s.name }),
-          s.hotkey ? App.el("kbd", { text: String(s.hotkey) }) : null,
+      // In key order, keyless ones last. The list then reads the way the
+      // keyboard does — 0 at the top — and "which key was that" is answerable
+      // by looking rather than by remembering.
+      const ordered = App.state.sets.slice().sort((a, b) => {
+        if ((a.hotkey === null) !== (b.hotkey === null)) return a.hotkey === null ? 1 : -1;
+        if (a.hotkey !== b.hotkey) return a.hotkey - b.hotkey;
+        return a.name.localeCompare(b.name);
+      });
+      ordered.forEach((s) => {
+        const active = sameSet(s.calendars, App.state.visibleIds());
+        nodes.push(App.el("div", { class: "set-row" + (active ? " active" : "") },
+          App.el("button", {
+            class: "set-apply",
+            onclick: () => applySet(s.id),
+            title: `${s.calendars.length} calendar${s.calendars.length === 1 ? "" : "s"}`,
+          },
+            App.el("span", { class: "set-name", text: s.name }),
+            s.hotkey !== null ? App.el("kbd", { text: String(s.hotkey) }) : null,
+          ),
+          App.el("button", {
+            class: "set-edit",
+            text: "✎",
+            title: "Rename it, move its key, change what is in it",
+            onclick: (ev) => { ev.stopPropagation(); App.sets.open(s); },
+          }),
         ));
       });
     }
@@ -80,7 +97,7 @@ App.shell = (() => {
     nodes.push(App.el("div", { class: "cal-actions" },
       App.el("button", { class: "link", text: "All", onclick: () => setVisible(App.state.calendars.map((c) => c.id)) }),
       App.el("button", { class: "link", text: "None", onclick: () => setVisible([]) }),
-      App.el("button", { class: "link", text: "Save as set…", onclick: saveSet }),
+      App.el("button", { class: "link", text: "New set…", onclick: () => App.sets.open(null) }),
       hidden ? App.el("span", { class: "muted small", text: `${hidden} hidden` }) : null,
     ));
 
@@ -123,20 +140,19 @@ App.shell = (() => {
     refresh();
   }
 
-  async function saveSet() {
-    const name = prompt("Name this set of calendars");
-    if (!name) return;
-    const hotkeyRaw = prompt("A number key for it (1-9), or leave empty", String(App.state.sets.length + 1));
-    const hotkey = hotkeyRaw && /^[1-9]$/.test(hotkeyRaw.trim()) ? Number(hotkeyRaw.trim()) : null;
-    await App.api.post("/api/sets", { name, hotkey, calendars: App.state.visibleIds() });
-    await App.load.state();
-    renderSidebar();
+  /* Whether what is on screen *is* this set, so the sidebar can say which one
+     you are in. Order is not meaningful, so compare as sets. */
+  function sameSet(a, b) {
+    if (a.length !== b.length || !a.length) return false;
+    const other = new Set(b);
+    return a.every((id) => other.has(id));
   }
 
   // --- toolbar --------------------------------------------------------------
 
   function title() {
     const c = App.state.cursor;
+    if (App.state.view === "year") return String(c.getFullYear());
     if (App.state.view === "week") {
       const start = T().startOfWeek(c, App.state.weekStart);
       const end = T().addDays(start, 6);
@@ -161,12 +177,42 @@ App.shell = (() => {
 
   // --- views ----------------------------------------------------------------
 
+  /* Renders are serialised, and a stale one is dropped rather than drawn.
+
+     Every view fetches its range before it draws, so two quick steps — a wheel
+     over a month grid, a held-down arrow — overlap. Left alone the slower of
+     the two finishes last and owns the screen, which is how pressing `w` after
+     a wheel could leave the month drawn over the week: the week rendered, and
+     the month's older request landed on top of it.
+
+     `showSeq` names the newest request; `inflight` is the render currently
+     holding the stage. A request waits for that to finish, then checks whether
+     it is still the newest before touching anything. */
+  let showSeq = 0;
+  let inflight = Promise.resolve();
+
   async function show() {
+    const mine = ++showSeq;
     stage = document.getElementById("stage");
     paintToolbar();
-    if (App.state.view === "ribbon") await App.ribbon.show(stage);
-    else if (App.state.view === "month") await App.month.show(stage);
-    else await App.week.show(stage, App.state.view === "day" ? 1 : 7);
+
+    const previous = inflight;
+    let release;
+    inflight = new Promise((resolve) => { release = resolve; });
+    try {
+      await previous;
+      if (mine !== showSeq) return;    // overtaken while queued; drop it
+      // The Ribbon is the only view that listens to the stage scrolling; take
+      // its handler off before another view is drawn into the same element.
+      stage.onscroll = null;
+      if (App.state.view === "ribbon") await App.ribbon.show(stage);
+      else if (App.state.view === "month") await App.month.show(stage);
+      else if (App.state.view === "year") await App.year.show(stage);
+      else await App.week.show(stage, App.state.view === "day" ? 1 : 7);
+      paintToolbar();
+    } finally {
+      release();
+    }
   }
 
   async function setView(view) {
@@ -181,13 +227,15 @@ App.shell = (() => {
     await App.load.events(App.state.range.start, App.state.range.end);
     if (App.state.view === "ribbon") App.ribbon.render();
     else if (App.state.view === "month") App.month.render();
+    else if (App.state.view === "year") App.year.render();
     else App.week.render();
     paintToolbar();
   }
 
   function step(direction) {
     const c = App.state.cursor;
-    if (App.state.view === "month") App.state.cursor = T().addMonths(c, direction);
+    if (App.state.view === "year") App.state.cursor = new Date(c.getFullYear() + direction, c.getMonth(), 1);
+    else if (App.state.view === "month") App.state.cursor = T().addMonths(c, direction);
     else if (App.state.view === "day") App.state.cursor = T().addDays(c, direction);
     else if (App.state.view === "week") App.state.cursor = T().addDays(c, 7 * direction);
     else App.state.cursor = T().addDays(c, 14 * direction);
@@ -222,6 +270,15 @@ App.shell = (() => {
     };
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.onclick = () => setView(btn.dataset.view);
+    });
+
+    // Wheel-to-page, everywhere but the Ribbon — which is one continuous
+    // scroll by design and has no next period to move to. Attached to the
+    // stage element, which outlives every view drawn into it: attaching per
+    // render handed each wheel event a fresh cooldown, and one flick walked
+    // through half a year.
+    App.wheel.attach(document.getElementById("stage"), (dir) => {
+      if (App.state.view !== "ribbon") step(dir);
     });
 
     // The ribbon owns the date while it is scrolled, so the toolbar follows it

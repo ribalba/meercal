@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>meercal</title>
   <meta name="theme-color" content="#1d6ff2" />
-  <link rel="icon" type="image/svg+xml" href="/static/img/logo.svg" />
+  <link rel="icon" type="image/png" href="/static/img/logo-square.png" />
+  <link rel="apple-touch-icon" href="/static/img/logo-square.png" />
   <link rel="stylesheet" href="/static/css/cal.css" />
   <!-- In <head> and blocking on purpose: it sets the theme attribute on <html>
        before the first paint, so a forced theme never flashes the other one. -->
@@ -15,8 +16,11 @@
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-toolbar">
-        <span class="brand"><img class="brand-logo" src="/static/img/logo.svg" alt="" />meercal</span>
-        <button class="icon-btn" id="btn-refresh" title="Sync now — ask the agent for a pass (.)">↻</button>
+        <span class="brand"><img class="brand-logo" src="/static/img/logo-square.png" alt="" />meercal</span>
+        <!-- The glyph is in a span of its own so the animation can turn *it*.
+             Rotating the button turned its hover background and focus ring with
+             it, which read as a spinning border. -->
+        <button class="icon-btn" id="btn-refresh" title="Sync now — ask the agent for a pass (.)"><span>↻</span></button>
       </div>
       <div class="sidebar-tools">
         <button class="icon-btn" id="btn-theme" title="Light, dark, or follow the system">◐</button>
@@ -51,6 +55,7 @@
           <button data-view="week" title="Week (w)">Week</button>
           <button data-view="month" title="Month (m)">Month</button>
           <button data-view="day" title="Day (d)">Day</button>
+          <button data-view="year" title="Year — the shape of the whole year (y)">Year</button>
         </div>
         <button class="btn primary" id="btn-new" title="New event (n)">New</button>
       </header>
@@ -66,13 +71,92 @@
           <label class="rx-toggle" title="Match with a POSIX regular expression">
             <input type="checkbox" id="regex-toggle" /> <span>Regex</span>
           </label>
+          <!-- The filters used to sit under the bar as a row of chips. They
+               were permanent furniture for something you learn once, so they
+               are behind this instead — the same trade meerail makes. -->
+          <button class="icon-btn" id="filter-help-btn" title="What you can type in here">ⓘ</button>
         </div>
-        <div class="filter-help" id="filter-help"></div>
         <div class="search-results" id="search-results" hidden></div>
       </div>
 
       <div id="stage" class="ribbon"></div>
     </section>
+  </div>
+
+  <div class="modal-backdrop" id="filter-help-modal" hidden>
+    <div class="modal-card" id="filter-help-card">
+      <div class="modal-head">
+        <span class="modal-title">Filter and search</span>
+        <button class="icon-btn" id="filter-help-close" title="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="help-lede">
+          What you type here <strong>filters the calendar you are looking at</strong> — the
+          same view, with less in it. Plain words are ANDed, and each has to appear somewhere
+          in the event: its title, where it is, its notes, or the people on it. Wrap a phrase
+          in <code>"double quotes"</code> to match it exactly.
+        </p>
+        <p class="help-lede">
+          Press <kbd>Enter</kbd> and the same query becomes a <strong>search across every
+          calendar</strong>, including the ones you have switched off — hiding a calendar is
+          about the drawing, never about the data.
+        </p>
+
+        <h3>Filters</h3>
+        <p class="help-lede">
+          These narrow without searching text, so they work on their own as well as beside
+          words. Mixing them is an AND.
+        </p>
+        <table class="help-table">
+          <tr>
+            <td><code>cal:<em>name</em></code></td>
+            <td>Only that calendar. Matches part of the name — <code>cal:fam</code> is enough.</td>
+          </tr>
+          <tr>
+            <td><code>with:<em>who</em></code></td>
+            <td>Someone on it: an attendee or the organiser, by name or address.</td>
+          </tr>
+          <tr>
+            <td><code>in:<em>where</em></code></td>
+            <td>The location field.</td>
+          </tr>
+          <tr>
+            <td><code>is:span</code></td>
+            <td>The long ones — anything covering more than a day. This is the whole rail.</td>
+          </tr>
+          <tr>
+            <td><code>is:allday</code> / <code>is:timed</code></td>
+            <td>All-day events, or the ones with a clock on them.</td>
+          </tr>
+          <tr>
+            <td><code>is:recurring</code></td>
+            <td>Anything that repeats.</td>
+          </tr>
+          <tr>
+            <td><code>is:free</code> / <code>is:busy</code></td>
+            <td>Whether it claims the time or is only a note in it (iCalendar's TRANSP).</td>
+          </tr>
+          <tr>
+            <td><code>is:cancelled</code></td>
+            <td>Called off, but still on the calendar.</td>
+          </tr>
+        </table>
+
+        <h3>Regex</h3>
+        <p class="help-lede">
+          Tick <strong>Regex</strong> and the words become POSIX regular expressions, matched
+          case-insensitively by Postgres itself against an indexed column — so
+          <code>standup|jour fixe</code> or <code>^Q[1-4] </code> costs about what a word
+          costs. <code>rx:</code> in front of a term turns it on for that query without
+          reaching for the tickbox.
+        </p>
+
+        <h3>Together</h3>
+        <pre class="landing-code help-code">dentist cal:family
+is:span with:anna
+rx:invoice.*2026 is:recurring</pre>
+      </div>
+    </div>
   </div>
 
   <div class="modal-backdrop" id="login-overlay" hidden>
@@ -96,7 +180,9 @@
   <script src="/static/js/app.ribbon.js"></script>
   <script src="/static/js/app.week.js"></script>
   <script src="/static/js/app.month.js"></script>
+  <script src="/static/js/app.year.js"></script>
   <script src="/static/js/app.editor.js"></script>
+  <script src="/static/js/app.sets.js"></script>
   <script src="/static/js/app.search.js"></script>
   <script src="/static/js/app.keys.js"></script>
   <script src="/static/js/app.shell.js"></script>

@@ -42,10 +42,12 @@ CALENDARS = [
     ("Birthdays", "#db2777", True),
 ]
 
+# name, key, members. Everything is on 0 — the key that always means the lot,
+# and the reason the sidebar lists sets in key order.
 SETS = [
+    ("Everything", 0, [name for name, _, _ in CALENDARS]),
     ("Work", 1, ["Work", "On-call", "Conferences"]),
     ("Family", 2, ["Family", "Kita", "Birthdays"]),
-    ("Everything", 3, [name for name, _, _ in CALENDARS]),
 ]
 
 

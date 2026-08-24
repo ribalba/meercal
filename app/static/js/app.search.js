@@ -10,15 +10,6 @@
 window.App = window.App || {};
 
 App.search = (() => {
-  const HELP = [
-    ["cal:family", "one calendar"],
-    ["with:anna", "someone on it"],
-    ["in:berlin", "where"],
-    ["is:span", "the long ones"],
-    ["is:recurring", "repeats"],
-    ["is:free", "does not block the time"],
-  ];
-
   let timer = null;
 
   function apply(value) {
@@ -73,17 +64,16 @@ App.search = (() => {
       if (!panel.hidden && !panel.contains(e.target) && e.target !== input) panel.hidden = true;
     });
 
-    document.getElementById("filter-help").replaceChildren(
-      ...HELP.map(([token, what]) => App.el("button", {
-        class: "help-token",
-        title: what,
-        onclick: () => {
-          input.value = `${input.value} ${token}`.trim();
-          apply(input.value);
-          input.focus();
-        },
-      }, App.el("code", { text: token }))),
-    );
+    // The syntax, one keypress away rather than permanently on screen.
+    const help = document.getElementById("filter-help-modal");
+    const openHelp = () => { help.hidden = false; };
+    const closeHelp = () => { help.hidden = true; };
+    document.getElementById("filter-help-btn").onclick = openHelp;
+    document.getElementById("filter-help-close").onclick = closeHelp;
+    help.addEventListener("click", (e) => { if (e.target === help) closeHelp(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !help.hidden) closeHelp();
+    });
   }
 
   return { init, apply };

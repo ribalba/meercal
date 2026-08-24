@@ -53,6 +53,10 @@ App.ribbon = (() => {
   let rangeStart = null;
   let rangeEnd = null;
   let extending = false;
+  // Until when a scroll event is ours rather than the reader's. Programmatic
+  // scrolls fire the same event, and acting on them is what turned a jump into
+  // a loop of window slides.
+  let suppressUntil = 0;
 
   // --- layout ---------------------------------------------------------------
 
@@ -225,7 +229,13 @@ App.ribbon = (() => {
     const byDay = prepare(App.state.events, rangeStart, rangeEnd);
 
     const grid = App.el("div", { class: "ribbon-grid" });
-    grid.style.setProperty("--lanes", String(lanes));
+    // Never zero. `repeat(0, …)` is invalid CSS, and an invalid value takes the
+    // whole grid-template-columns declaration with it — which drops the grid
+    // back to auto columns and draws the day rows and the gutter in the wrong
+    // order. A fortnight with no long events in it is an ordinary fortnight,
+    // so this was a view that broke on the *easy* case. The rail is collapsed
+    // by width instead: .ribbon:not(.has-rail) sets --lane-w to 0.
+    grid.style.setProperty("--lanes", String(Math.max(lanes, 1)));
     rows = [];
     dayRow = new Map();
 
@@ -310,7 +320,13 @@ App.ribbon = (() => {
     grid.append(...cells);
     root.replaceChildren(grid);
     root.classList.toggle("has-rail", lanes > 0);
-    requestAnimationFrame(() => { measure(); updateCounters(); });
+    // Synchronously, not in a frame's time: everything that scrolls — Today,
+    // the arrows, restoring the anchor after the window slides — reads these
+    // offsets immediately after a render, and a deferred measure means it
+    // reads the *previous* render's. Reading offsetTop forces the layout the
+    // browser was going to do anyway, so this costs nothing it saved.
+    measure();
+    updateCounters();
   }
 
   // --- "day 4 of 19" --------------------------------------------------------
@@ -331,6 +347,10 @@ App.ribbon = (() => {
     let found = null;
     for (const r of rows) {
       if (r.kind !== "day" && r.kind !== "quiet") continue;
+      // Rows are in date order and so are their tops, so the last one that has
+      // passed the top of the viewport is the day being read. The `break` is
+      // the whole point — without measured tops every row would look like it
+      // qualifies and this would answer with the end of the range.
       if (r.top <= y) found = r; else break;
     }
     return found ? found.date : rangeStart;
@@ -374,8 +394,20 @@ App.ribbon = (() => {
   }
 
   function onScroll() {
-    if (!root || extending) return;
+    // Replacing the stage's contents resets its scrollTop, which fires a
+    // scroll event — and #stage is shared with every other view. Without this
+    // guard, switching away from the Ribbon fired this handler, which saw
+    // itself near the edge of its old window, fetched, and drew the Ribbon
+    // back over the week that had just replaced it.
+    if (!root || extending || App.state.view !== "ribbon") return;
+    // The counters are just what is on screen, so they follow every scroll.
     updateCounters();
+    // The date does not. A programmatic scroll — the one every render ends
+    // with, and the jump `t` makes — fires this too, and replacing the grid
+    // resets scrollTop to 0 first. Reading the cursor from that moment is how
+    // opening the Ribbon used to drag the date back to the top of the loaded
+    // window: press `w` afterwards and you were six weeks in the past.
+    if (performance.now() < suppressUntil) return;
     const date = topDate();
     App.bus.emit("ribbon-position", date);
     if (T().daysBetween(rangeStart, date) < EDGE_DAYS_BACK) extend(-1);
@@ -387,8 +419,18 @@ App.ribbon = (() => {
     const row = dayRow.get(key);
     if (!row) return false;
     const entry = rows.find((r) => r.row === row);
-    if (!entry) return false;
-    root.scrollTo({ top: Math.max(entry.top - 12, 0), behavior });
+    if (!entry || !entry.node) return false;
+    const top = entry.node.offsetTop;
+    entry.top = top;
+    // The scroll this causes is ours, not the reader's: it must not be read as
+    // "they have reached the edge, slide the window", which is how one Today
+    // used to turn into a run of slides and a view that would not settle.
+    suppressUntil = performance.now() + 400;
+    root.scrollTo({ top: Math.max(top - 12, 0), behavior });
+    // Say where we went. The scroll events this causes are suppressed above,
+    // so this is the only thing that tells the toolbar and the other views
+    // which day the Ribbon is now showing.
+    App.bus.emit("ribbon-position", T().day(date));
     return true;
   }
 
@@ -398,6 +440,8 @@ App.ribbon = (() => {
     root = container;
     root.className = "ribbon";
     root.onscroll = onScroll;
+    // Nothing between here and the scroll below is the reader moving.
+    suppressUntil = performance.now() + 1500;
     const cursor = App.state.cursor;
     await App.load.events(T().addDays(cursor, -BACK_DAYS), T().addDays(cursor, FORWARD_DAYS));
     render();
@@ -406,9 +450,10 @@ App.ribbon = (() => {
 
   async function goto(date) {
     App.state.cursor = T().day(date);
-    if (!scrollToDate(date)) {
-      await show(root);
-    }
+    if (scrollToDate(date)) return;
+    // Not in the loaded window — fetch one around it. `show` scrolls to the
+    // cursor itself once the render has been measured.
+    await show(root);
   }
 
   return { show, render, goto, scrollToDate, topDate };

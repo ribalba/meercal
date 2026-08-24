@@ -11,17 +11,20 @@ App.keys = (() => {
     { key: "w", label: "Week", run: () => App.shell.setView("week") },
     { key: "m", label: "Month", run: () => App.shell.setView("month") },
     { key: "d", label: "Day", run: () => App.shell.setView("day") },
+    { key: "y", label: "Year", run: () => App.shell.setView("year") },
     { key: "t", label: "Today", run: () => App.shell.today() },
     { key: "←/→", label: "Back / forward", match: (e) => e.key === "ArrowLeft" || e.key === "ArrowRight",
       run: (e) => App.shell.step(e.key === "ArrowLeft" ? -1 : 1) },
     { key: "n", label: "New event", run: () => App.editor.create() },
     { key: "/", label: "Filter", run: () => document.getElementById("filter-input").focus() },
-    { key: "1–9", label: "Calendar set", match: (e) => /^[1-9]$/.test(e.key),
+    { key: "0–9", label: "Calendar set", match: (e) => /^[0-9]$/.test(e.key),
       run: (e) => {
         const set = App.state.sets.find((s) => s.hotkey === Number(e.key));
         if (set) App.shell.applySet(set.id);
+        // 0 means everything even when no set has claimed it — the one key
+        // that should always get you back to seeing the lot.
+        else if (e.key === "0") App.shell.setVisible(App.state.calendars.map((c) => c.id));
       } },
-    { key: "0", label: "All calendars", run: () => App.shell.setVisible(App.state.calendars.map((c) => c.id)) },
     { key: "q", label: "Quiet days", run: () => {
       App.state.prefs.collapseQuiet = !App.state.prefs.collapseQuiet;
       App.load.prefs();

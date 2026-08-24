@@ -155,3 +155,58 @@ def test_a_backwards_range_is_refused(client, seeded):
     response = client.get("/api/events", params={"start": "2026-09-01T00:00:00",
                                                  "end": "2026-08-01T00:00:00"})
     assert response.status_code == 400
+
+
+def test_sets_can_be_made_edited_and_applied(client, seeded):
+    made = client.post("/api/sets", json={
+        "name": "Everything", "hotkey": 0, "calendars": [seeded["work"], seeded["family"]],
+    })
+    assert made.status_code == 200, made.text
+    set_id = made.json()["id"]
+
+    # Renamed, re-keyed, and with a different membership — all three are the
+    # reason a set is editable rather than only creatable.
+    edited = client.patch(f"/api/sets/{set_id}", json={
+        "name": "All of it", "hotkey": 9, "calendars": [seeded["family"]],
+    })
+    assert edited.status_code == 200, edited.text
+    assert edited.json() == {"id": set_id, "name": "All of it", "hotkey": 9,
+                             "calendars": [seeded["family"]]}
+
+    applied = client.post(f"/api/sets/{set_id}/apply", json={})
+    assert applied.json()["visible"] == [seeded["family"]]
+    assert [e["title"] for e in get_range(client)["events"]] == ["Dentist"]
+
+    client.post("/api/calendars/visibility", json={"visible": [seeded["work"], seeded["family"]]})
+
+
+def test_a_key_belongs_to_one_set(client, seeded):
+    first = client.post("/api/sets", json={"name": "One", "hotkey": 4, "calendars": []}).json()
+    second = client.post("/api/sets", json={"name": "Two", "hotkey": 4, "calendars": []}).json()
+    sets = {s["name"]: s for s in client.get("/api/state").json()["sets"]}
+    # Taking a key takes it: two sets that both answer to 4 is a keyboard that
+    # does something different depending on which row you looked at last.
+    assert sets["Two"]["hotkey"] == 4
+    assert sets["One"]["hotkey"] is None
+
+    client.delete(f"/api/sets/{first['id']}")
+    client.delete(f"/api/sets/{second['id']}")
+
+
+def test_a_set_cannot_take_another_set_s_name(client, seeded):
+    a = client.post("/api/sets", json={"name": "Alpha", "calendars": []}).json()
+    b = client.post("/api/sets", json={"name": "Beta", "calendars": []}).json()
+    clash = client.patch(f"/api/sets/{b['id']}", json={"name": "Alpha"})
+    assert clash.status_code == 409
+    client.delete(f"/api/sets/{a['id']}")
+    client.delete(f"/api/sets/{b['id']}")
+
+
+def test_clearing_a_key_needs_saying_so(client, seeded):
+    made = client.post("/api/sets", json={"name": "Keyed", "hotkey": 7, "calendars": []}).json()
+    # A bare PATCH leaves it alone — null is what "unchanged" looks like.
+    kept = client.patch(f"/api/sets/{made['id']}", json={"name": "Keyed still"}).json()
+    assert kept["hotkey"] == 7
+    cleared = client.patch(f"/api/sets/{made['id']}", json={"clear_hotkey": True}).json()
+    assert cleared["hotkey"] is None
+    client.delete(f"/api/sets/{made['id']}")

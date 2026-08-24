@@ -121,9 +121,11 @@ App.time = {
     return { year: t.getFullYear(), week };
   },
   isToday(d) { return this.ymd(d) === this.ymd(new Date()); },
+  /* Always H:MM, never a bare hour. "10" beside a title reads as a number in
+     the title — a count, an issue, a room — and only "10:00" reads as a time.
+     The two characters are worth it. */
   time(d) {
-    const h = d.getHours(), m = d.getMinutes();
-    return m ? `${h}:${String(m).padStart(2, "0")}` : `${h}`;
+    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
   },
   weekday(d, long) {
     return d.toLocaleDateString(undefined, { weekday: long ? "long" : "short" });
@@ -225,4 +227,64 @@ App.tint = (hex, alpha) => {
   const h = (hex || "#1d6ff2").replace("#", "");
   const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
+
+/* The mouse wheel, as a way of moving through time.
+
+   In the grid views there is nothing below the fold worth a wheel of its own —
+   a month is a month — so the wheel moves to the next one. The week and day
+   grids *are* scrollable, though: the hours have to stay reachable. So the rule
+   is "scroll first, then step": the wheel scrolls the hour grid until it runs
+   out, and only a wheel at the edge changes the date. That is the same
+   overscroll gesture a phone uses to page, and it means neither behaviour costs
+   the other.
+
+   The Ribbon never gets this: it is one continuous scroll by design, and there
+   is no "next period" to move to. */
+App.wheel = {
+  // One notch on a mouse is ~100; trackpads send a stream of small deltas. The
+  // threshold plus the cooldown is what stops a flick from crossing a year.
+  THRESHOLD: 80,
+  COOLDOWN: 420,
+
+  /* Attach once, for the life of the page. The accumulator and the cooldown
+     live in the closure, and a step re-renders the view — so re-attaching per
+     render handed every wheel event a fresh cooldown of zero, and one flick
+     walked through six months. */
+  attach(el, onStep) {
+    let acc = 0;
+    let until = 0;
+    el.onwheel = (e) => {
+      if (e.ctrlKey || e.metaKey) return;                 // pinch-zoom
+      const dir = Math.sign(e.deltaY);
+      if (!dir) return;
+      if (this.scrollable(e.target, dir, el)) { acc = 0; return; }
+      e.preventDefault();
+      const now = performance.now();
+      if (now < until) return;
+      acc += e.deltaY;
+      if (Math.abs(acc) < this.THRESHOLD) return;
+      acc = 0;
+      until = now + this.COOLDOWN;
+      onStep(dir);
+    };
+  },
+
+  /* Something between the pointer and the view that can still move this way.
+     "Still" is the operative word: a grid scrolled to its bottom is not
+     scrollable downwards, which is exactly when the wheel should page. */
+  scrollable(node, dir, stop) {
+    while (node && node !== document.body) {
+      const style = getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) {
+        const atTop = node.scrollTop <= 0;
+        const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+        if (dir < 0 ? !atTop : !atBottom) return node;
+      }
+      if (node === stop) break;
+      node = node.parentElement;
+    }
+    return null;
+  },
 };
