@@ -2,7 +2,7 @@
 
 Hiding a calendar is about the drawing; it is not a statement that its contents
 should become unfindable. When you are looking for "that dentist appointment"
-you do not first want to remember which of twenty calendars it was on — so
+you do not first want to remember which of twenty calendars it was on, so
 search ignores visibility by default and says which calendar each hit came
 from.
 

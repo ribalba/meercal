@@ -1,10 +1,10 @@
-/* Month — the overview, with the one fix a month grid actually needs.
+/* Month: the overview, with the one fix a month grid actually needs.
 
    A month grid wraps time every seven days, which is what makes long events
    hard: the usual drawing restarts the bar on each line with nothing to say it
    is the same event. Here a bar that continues is capped with an arrow and
    keeps its lane down the whole month, so the eye can follow one stretch of
-   colour across the wraps — and the Ribbon is one key away when following it
+   colour across the wraps, and the Ribbon is one key away when following it
    is not enough. */
 
 window.App = window.App || {};
@@ -28,7 +28,7 @@ App.month = (() => {
       item.days = T().daysBetween(item.startDay, item.endDay) + 1;
       return item;
     });
-    // By start, then longest first — not by length. Packing longest-first puts
+    // By start, then longest first, not by length. Packing longest-first puts
     // a one-day birthday behind every three-week event in the month, which
     // gives it lane six and makes every cell in its week reserve six lanes of
     // empty band. Chronological order keeps the lanes as shallow as the

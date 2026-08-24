@@ -1,6 +1,6 @@
 # meercal.com
 
-The marketing site. A static page and a stylesheet, served by nginx — nothing to
+The marketing site. A static page and a stylesheet, served by nginx. Nothing to
 build.
 
 ```bash
@@ -11,7 +11,7 @@ docker compose up --build -d      # http://127.0.0.1:8081
 The landing styles are the meerail site's, which are in turn meerato's, so the
 three read as one family. Keep the shared part of `public/css/site.css`
 identical between them and put anything specific under the
-`===== meercal additions =====` heading at the foot of the file — a fix to one
+`===== meercal additions =====` heading at the foot of the file, so a fix to one
 site should be copyable to the others without a diff to read.
 
 ## Screenshots

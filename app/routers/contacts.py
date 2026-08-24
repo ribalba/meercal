@@ -1,7 +1,7 @@
 """Attendees, from the people you actually write to.
 
-meerail already keeps a materialised address book — every from/to/cc it has
-seen, with how often — and a co-recipient graph of who you address together.
+meerail already keeps a materialised address book (every from/to/cc it has
+seen, with how often) and a co-recipient graph of who you address together.
 That is a far better source for "who am I inviting" than an address book nobody
 maintains, and it is the first place the two programs meet.
 

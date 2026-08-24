@@ -1,0 +1,46 @@
+# meercal-agent as a systemd *user* service.
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp contrib/meercal-agent.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now meercal-agent
+#   journalctl --user -u meercal-agent -f
+#
+# A **user** unit, not a system one, and this is load-bearing rather than a
+# preference. Desktop reminders go out through notify-send, which needs the
+# session bus: DBUS_SESSION_BUS_ADDRESS. A system unit has no session and no
+# bus, so every desktop reminder would fail into a log nobody reads, silently,
+# while the calendars carried on syncing perfectly. `python -m agent.remind
+# --test` refuses to pass in that state rather than letting you find out on the
+# morning you miss something.
+#
+# If you want the agent to keep running while you are logged out:
+#   sudo loginctl enable-linger $USER
+
+[Unit]
+Description=meercal agent: calendar sync and reminders
+Documentation=https://github.com/ribalba/meercal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/code/meercal
+ExecStart=%h/code/meercal/.venv/bin/python -m agent.main
+
+# Secrets that should not be written into meercal.toml. The compose file
+# bind-mounts that into the web container, and a token has no business there.
+# Mode 0600, and the agent refuses to start if it is readable by anyone else.
+#   EnvironmentFile=-%h/.config/meercal/secrets.env
+EnvironmentFile=-%h/.config/meercal/secrets.env
+
+Restart=on-failure
+RestartSec=10
+
+# The database is local and the calendar servers are remote; nothing here needs
+# to write outside its own directory.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

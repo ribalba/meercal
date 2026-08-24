@@ -14,7 +14,7 @@ os.environ.setdefault("TZ", "Europe/Berlin")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# The API tests need a real Postgres — the queries they cover are Postgres'
+# The API tests need a real Postgres: the queries they cover are Postgres'
 # (regex operators, JSONB, partial indexes), so SQLite would prove nothing.
 # They run against MEERCAL_TEST_DB and skip without it, so that `pytest` on a
 # laptop with no database still runs everything else, and so that a test run can
@@ -22,3 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _test_db = os.environ.get("MEERCAL_TEST_DB")
 if _test_db:
     os.environ["DATABASE_URL"] = _test_db
+
+
+import pytest
+
+
+@pytest.fixture
+def anyio_backend():
+    """asyncio only. The async tests here are about our own code, not about
+    running it under trio as well."""
+    return "asyncio"

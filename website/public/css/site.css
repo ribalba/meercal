@@ -1,6 +1,6 @@
 /* meercal marketing site.
    The landing styles are the meerail site's, which are in turn the meerkat
-   landing page's — the three sites are one family and should read as one.
+   landing page's: the three sites are one family and should read as one.
    Anything specific to this site is grouped at the bottom under
    "meercal additions"; the shared part above is kept identical on purpose, so
    a fix to one site can be copied to the others without a diff to read. */
@@ -306,7 +306,7 @@ html, body {
 
 /* The two halves of a content window, on the storage card: what is kept whole
    and what is kept as headers. The second row is deliberately not greyed out to
-   the point of looking disabled — that mail is still there and still searchable. */
+   the point of looking disabled: that mail is still there and still searchable. */
 .landing-window {
   margin-top: 1.1rem;
   display: flex;
@@ -369,7 +369,7 @@ html, body {
   font-weight: 600;
 }
 
-/* Generic chip row — the reminder presets, the machines sharing a journal.
+/* Generic chip row: the reminder presets, the machines sharing a journal.
    Same shape as .landing-filetype, which was written for one card and then
    wanted by three; this is that look with a name that does not lie. */
 .landing-chips {
@@ -392,7 +392,7 @@ html, body {
 }
 .landing-chip .icon { margin: 0; color: #2185d0; }
 
-/* Stacked miniature rows — the Outbox holding a message, the Recent actions
+/* Stacked miniature rows: the Outbox holding a message, the Recent actions
    list. Solid rather than dashed (cf. .landing-window-row): every row here is a
    thing that exists, not a state something might be in. */
 .landing-rows {
@@ -413,7 +413,7 @@ html, body {
   background: #fbfcfd;
 }
 .landing-row .icon { margin: 0; color: #2185d0; flex: none; }
-/* The trailing control on a row — "Send now", "Undo". Pushed to the end so the
+/* The trailing control on a row: "Send now", "Undo". Pushed to the end so the
    rows read as a list with an action, which is what they are in the app. */
 .landing-row-action {
   margin-left: auto;
@@ -497,7 +497,7 @@ html, body {
 }
 
 /* --- Screenshots ------------------------------------------------------- */
-/* Small thumbnails only — the detail lives in the lightbox, so these just have
+/* Small thumbnails only: the detail lives in the lightbox, so these just have
    to be recognisable and invite the click. */
 .landing-shots {
   max-width: 1000px;
@@ -639,13 +639,118 @@ html, body {
 
 /* ===== meercal additions ===== */
 
-/* A single wide screenshot used inside a feature section rather than in the
-   thumbnail grid — the Ribbon needs the width to make its point. */
-.landing-shot-wide {
+/* A tour of wide screenshots inside a feature section rather than the
+   thumbnail grid: the Ribbon needs the width to make its point, and the rest
+   of the views are a click sideways instead of another five screens of page.
+   The controls are added by the script, so with JS off this is what it
+   replaced: one wide screenshot. */
+.landing-slider {
   max-width: 1000px;
   margin: 2.5rem auto 0;
 }
-.landing-shot-wide img { border-radius: 10px; }
+.landing-slider-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.landing-slider-track {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transition: transform .45s cubic-bezier(.4, 0, .2, 1);
+}
+.landing-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+.landing-slide .landing-shot-btn { border-radius: 10px; }
+.landing-slide img { border-radius: 10px; }
+/* The grid's lift-on-hover would be clipped by the viewport, and a slide that
+   moves under the pointer reads as a bug rather than as an invitation. */
+.landing-slide .landing-shot-btn:hover,
+.landing-slide .landing-shot-btn:focus-visible {
+  transform: none;
+  box-shadow: none;
+}
+
+.landing-slider-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  /* Shown once the script has taken charge; dead arrows are worse than none. */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  margin-top: -1.3rem;
+  padding: 0;
+  border: 1px solid rgba(31, 35, 40, .08);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .93);
+  color: #24292f;
+  font-size: .95rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 35, 40, .18);
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.landing-slider.is-ready .landing-slider-arrow { display: flex; }
+.landing-slider-arrow:hover,
+.landing-slider-arrow:focus-visible {
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(31, 35, 40, .28);
+  outline: none;
+}
+.landing-slider-arrow .icon { margin: 0; }
+.landing-slider-prev { left: .75rem; }
+.landing-slider-next { right: .75rem; }
+
+/* Room for three lines held open, so changing slide doesn't shuffle the tabs
+   underneath it. Keep the notes short enough to fit. */
+.landing-slider-note {
+  max-width: 64ch;
+  min-height: 4.35rem;
+  margin: .9rem auto 0;
+  color: #57606a;
+  font-size: .95rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.landing-slider-tabs {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .4rem;
+  margin-top: .5rem;
+}
+.landing-slider.is-ready .landing-slider-tabs { display: flex; }
+.landing-slider-tab {
+  padding: .3rem .85rem;
+  border: 1px solid #e6e8eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #57606a;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.landing-slider-tab:hover { border-color: #c8ccd1; color: #24292f; }
+.landing-slider-tab:focus-visible { outline: 2px solid #1d6ff2; outline-offset: 2px; }
+.landing-slider-tab[aria-current="true"] {
+  border-color: #1d6ff2;
+  background: #1d6ff2;
+  color: #fff;
+}
+
+@media (max-width: 480px) {
+  .landing-slider-arrow { width: 2.2rem; height: 2.2rem; margin-top: -1.1rem; font-size: .85rem; }
+  .landing-slider-note { min-height: 0; font-size: .9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-slider-track { transition: none; }
+}
 
 /* Keys named in the feature copy. Fomantic has no kbd style of its own. */
 .landing-card kbd {

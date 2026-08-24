@@ -1,6 +1,6 @@
 """What the agent is doing, and asking it to do it now.
 
-The web app cannot sync anything itself — it holds no credentials and speaks no
+The web app cannot sync anything itself: it holds no credentials and speaks no
 CalDAV. "Refresh" therefore means leaving a note the agent reads on its next
 tick, which is a second or two away, not a request that blocks on a network the
 server has no access to.
@@ -42,7 +42,7 @@ def status(db: Session = Depends(get_db)) -> dict:
                 "kind": a.kind,
                 "last_sync_at": a.last_sync_at.isoformat() if a.last_sync_at else None,
                 # A local calendar has no server and no agent, so it is never
-                # behind — reporting it as stalled would be a warning that can
+                # behind, and reporting it as stalled would be a warning that can
                 # never be cleared.
                 "stale": bool(
                     a.active

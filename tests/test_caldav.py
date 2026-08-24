@@ -142,7 +142,7 @@ def test_a_pass_stores_events_and_expands_them(db, server, account):
     assert set(events) == {"standup@test", "trip@test"}
     assert events["trip@test"].all_day is True
     assert events["standup@test"].rrule.startswith("FREQ=WEEKLY")
-    # The alarm is not modelled, and must survive anyway — it is what the
+    # The alarm is not modelled, and must survive anyway: it is what the
     # phone that set it will look for.
     assert "BEGIN:VALARM" in events["standup@test"].raw_ics
 

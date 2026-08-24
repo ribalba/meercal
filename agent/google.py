@@ -1,7 +1,7 @@
 """Google, which is CalDAV with a different way of saying who you are.
 
 Basic auth to Google's CalDAV endpoint has been off for years, so this is
-OAuth2 or nothing — an App Password does not open it the way it opens IMAP for
+OAuth2 or nothing: an App Password does not open it the way it opens IMAP for
 meerail. What that buys, though, is that once there is a bearer token the
 protocol is the same CalDAV as everything else, so this file is only the token.
 

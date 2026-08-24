@@ -2,7 +2,7 @@
 
 The only writer in normal operation is the agent, but the server uses the same
 functions for the calendars it owns itself (a local calendar, an imported .ics)
-so that there is one definition of what storing an event means — including
+so that there is one definition of what storing an event means, including
 keeping ``occurrences`` in step, which is the part that is easy to forget and
 invisible when it goes wrong.
 """
@@ -103,7 +103,7 @@ def upsert_event(
     for attr in (
         "summary", "description", "location", "status", "transparent", "all_day",
         "dtstart", "dtend", "dtstart_local", "tz_id", "duration_s",
-        "rrule", "rdate", "exdate", "organizer", "attendees", "categories",
+        "rrule", "rdate", "exdate", "organizer", "attendees", "categories", "alarms",
         "sequence", "raw_ics",
     ):
         setattr(event, attr, getattr(parsed, attr))
@@ -127,8 +127,8 @@ def store_resource(
 ) -> int:
     """One CalDAV resource: the master and every override it carries.
 
-    Replaces the lot. A resource that loses an override — the moved instance
-    put back where it belongs — has to lose the row too, and a diff by UID
+    Replaces the lot. A resource that loses an override (the moved instance
+    put back where it belongs) has to lose the row too, and a diff by UID
     cannot see that: the deletion is the absence of a component, not a
     component saying it was deleted.
     """
@@ -163,7 +163,7 @@ def delete_resource(db: Session, calendar: Calendar, url: str) -> int:
 def prune(db: Session, calendar: Calendar, seen_urls: set[str]) -> int:
     """Drop what a full pass did not find.
 
-    Only safe after a pass that listed the *whole* collection — an incremental
+    Only safe after a pass that listed the *whole* collection: an incremental
     sync reports deletions itself, and using this after one would empty the
     calendar. The agent calls it only on the full-listing path.
     """

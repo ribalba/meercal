@@ -16,7 +16,7 @@ class Login(BaseModel):
 
 @router.get("/state")
 def state(request: Request) -> dict:
-    """Whether a password is needed at all — asked before the app draws itself."""
+    """Whether a password is needed at all, asked before the app draws itself."""
     return {
         "required": bool(settings.server_password),
         "secure": security.is_secure_request(request),

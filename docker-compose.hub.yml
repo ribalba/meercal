@@ -1,4 +1,4 @@
-# meercal from published images — what `meercal.sh` installs.
+# meercal from published images: what `meercal.sh` installs.
 #
 # Nothing here is built: every service is pulled from Docker Hub, so an install
 # needs Docker and this file and nothing else. The developer path is the other
@@ -22,7 +22,7 @@ services:
     ports:
       # Loopback only, and only so that `meercal.sh psql`, a backup, or an agent
       # run from a checkout can reach it. Drop the 127.0.0.1 and Docker
-      # publishes on 0.0.0.0 — straight through the host firewall to a database
+      # publishes on 0.0.0.0, straight through the host firewall to a database
       # with whatever password is in .env.
       - "127.0.0.1:${MEERCAL_DB_PORT:-5433}:5432"
     volumes:
@@ -40,7 +40,7 @@ services:
   server:
     image: ${MEERCAL_IMAGE_SERVER:-ribalba/meercal-server}:${MEERCAL_VERSION:-latest}
     # The config file is mode 0600 on the host and holds calendar passwords, so
-    # the container has to run as the user that owns it — a bind mount carries
+    # the container has to run as the user that owns it: a bind mount carries
     # the host's ownership through, and the image's own unprivileged user
     # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
     # passes the current user's. Running as root instead would read it, and is
@@ -65,7 +65,7 @@ services:
   agent:
     image: ${MEERCAL_IMAGE_AGENT:-ribalba/meercal-agent}:${MEERCAL_VERSION:-latest}
     # The config file is mode 0600 on the host and holds calendar passwords, so
-    # the container has to run as the user that owns it — a bind mount carries
+    # the container has to run as the user that owns it: a bind mount carries
     # the host's ownership through, and the image's own unprivileged user
     # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
     # passes the current user's. Running as root instead would read it, and is

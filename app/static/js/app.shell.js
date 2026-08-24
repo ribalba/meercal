@@ -4,11 +4,11 @@
    do the work:
 
    * **Sets.** A named group of calendars with a number key on it. You do not
-     think in calendars, you think in situations — work, family, the release —
+     think in calendars, you think in situations (work, family, the release)
      and switching to one is one keystroke rather than eleven tickboxes.
    * **Solo.** Alt-click (or the ⌾ button) shows one calendar and hides the
      rest, the way a layer solo works in an editor. Alt-click again to put them
-     back — the previous set is remembered, so soloing is a peek and not a
+     back: the previous set is remembered, so soloing is a peek and not a
      decision.
    * **Nothing is lost by hiding.** Visibility is about drawing only: search
      covers hidden calendars, and the toolbar says how many are switched off,
@@ -55,7 +55,7 @@ App.shell = (() => {
     if (App.state.sets.length) {
       nodes.push(App.el("div", { class: "tree-section", text: "Sets" }));
       // In key order, keyless ones last. The list then reads the way the
-      // keyboard does — 0 at the top — and "which key was that" is answerable
+      // keyboard does, 0 at the top, and "which key was that" is answerable
       // by looking rather than by remembering.
       const ordered = App.state.sets.slice().sort((a, b) => {
         if ((a.hotkey === null) !== (b.hotkey === null)) return a.hotkey === null ? 1 : -1;
@@ -180,8 +180,8 @@ App.shell = (() => {
 
   /* Renders are serialised, and a stale one is dropped rather than drawn.
 
-     Every view fetches its range before it draws, so two quick steps — a wheel
-     over a month grid, a held-down arrow — overlap. Left alone the slower of
+     Every view fetches its range before it draws, so two quick steps (a wheel
+     over a month grid, a held-down arrow) overlap. Left alone the slower of
      the two finishes last and owns the screen, which is how pressing `w` after
      a wheel could leave the month drawn over the week: the week rendered, and
      the month's older request landed on top of it.
@@ -288,13 +288,13 @@ App.shell = (() => {
     });
 
     // The drawer. Only reachable below the breakpoint, where the sidebar sits
-    // over the calendar rather than beside it — so anything that acts on the
+    // over the calendar rather than beside it, so anything that acts on the
     // calendar closes it again.
     document.getElementById("btn-menu").onclick = toggleDrawer;
     document.getElementById("scrim").onclick = closeDrawer;
     document.getElementById("btn-new-fab").onclick = () => App.editor.create();
 
-    // Wheel-to-page, everywhere but the Ribbon — which is one continuous
+    // Wheel-to-page, everywhere but the Ribbon, which is one continuous
     // scroll by design and has no next period to move to. Attached to the
     // stage element, which outlives every view drawn into it: attaching per
     // render handed each wheel event a fresh cooldown, and one flick walked
@@ -321,6 +321,9 @@ App.shell = (() => {
     App.power.whenSuspended(() => App.status.stop());
     App.power.whenResumed(() => { App.status.start(); refresh(); });
     App.status.start();
+    // Not stood down with the rest: an in-app reminder exists precisely to
+    // arrive while the window is behind something else.
+    if (App.reminders) App.reminders.start();
   }
 
   return { init, show, setView, refresh, goTo, today, step, renderSidebar, setVisible,
@@ -354,7 +357,7 @@ App.status = {
     if (!stale.length && !status.failing) { bar.hidden = true; return; }
     bar.hidden = false;
     bar.textContent = stale.length
-      ? `${stale.map((a) => a.label).join(", ")} — not syncing`
+      ? `${stale.map((a) => a.label).join(", ")}: not syncing`
       : `${status.failing} change(s) could not be sent`;
   },
 };

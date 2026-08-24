@@ -5,7 +5,7 @@ needs the **server running** (`make up` in the repo root) and, for anything to
 appear in it, the **agent** syncing your calendars.
 
 Same shape as [meerail's](https://github.com/ribalba/meerail) desktop shell on
-purpose — the two live on one desktop and should behave the same way.
+purpose: the two live on one desktop and should behave the same way.
 
 ## Run in development
 
@@ -52,7 +52,7 @@ bar/dock.
   the page, which is the one thing a browser cannot tell it: a window sitting
   behind another is not hidden, but it is not the app you are in either. The
   page stands its polling down while it is back there and refreshes when it
-  comes forward — see `app/static/js/app.power.js`.
+  comes forward; see `app/static/js/app.power.js`.
 - **Spell checking** in the event panel's title, location and notes fields, with
   a context menu of suggestions (`MEERCAL_SPELLCHECK_LANGS=en-GB,de-DE`).
 - **Outbound links** open in the system browser rather than in a window with no
@@ -61,5 +61,5 @@ bar/dock.
 
 `electron-builder` targets are configured in `package.json`. The app icon is
 `build/icon.png` (1024×1024, which is what macOS wants). Code signing and
-notarization are not configured — add your certificates for distributable macOS
+notarization are not configured; add your certificates for distributable macOS
 builds.

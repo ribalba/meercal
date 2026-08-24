@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# meercal — install and run the whole thing from prebuilt containers.
+# meercal: install and run the whole thing from prebuilt containers.
 #
 #   curl -fsSL https://raw.githubusercontent.com/ribalba/meercal/main/meercal.sh -o meercal.sh
 #   bash meercal.sh
@@ -11,13 +11,13 @@
 #
 # What it creates, all under ~/.meercal:
 #
-#   meercal.toml        your configuration, mode 0600 — it holds calendar passwords
+#   meercal.toml        your configuration, mode 0600; it holds calendar passwords
 #   .env                ports, database credentials and the image tag, read by compose
 #   docker-compose.yml  fetched from the release you installed
 #
 # Your calendars live in a Docker volume (meercal-db), not in that directory.
 #
-# The developer path — clone the repo, `make up`, the agent from a checkout — is
+# The developer path (clone the repo, `make up`, the agent from a checkout) is
 # untouched and documented in README.md. This is the other one: for someone who
 # wants their calendar, not a checkout.
 
@@ -30,8 +30,8 @@ CONFIG_FILE="$MEERCAL_HOME/meercal.toml"
 ENV_FILE="$MEERCAL_HOME/.env"
 COMPOSE_FILE="$MEERCAL_HOME/docker-compose.yml"
 
-# Where an upgrade and the version pin come from. Overridable so a fork — or a
-# test of an unreleased branch — can point the whole script elsewhere.
+# Where an upgrade and the version pin come from. Overridable so a fork, or a
+# test of an unreleased branch, can point the whole script elsewhere.
 REPO="${MEERCAL_REPO:-ribalba/meercal}"
 RAW_BASE="${MEERCAL_RAW_BASE:-https://raw.githubusercontent.com/$REPO/main}"
 
@@ -133,7 +133,7 @@ ask_choice() {  # ask_choice <default-index> <label…> -> echoes the chosen ind
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# Random secrets. openssl where it exists, /dev/urandom otherwise — the subshell
+# Random secrets. openssl where it exists, /dev/urandom otherwise. The subshell
 # disables pipefail because `head -c` closing the pipe kills `tr` with SIGPIPE,
 # which under `set -o pipefail` would otherwise abort the whole script.
 rand() {
@@ -147,7 +147,7 @@ rand() {
 
 # TOML string escaping. Passwords are arbitrary text and app-specific passwords
 # in particular carry spaces and dashes; a stray " or \ would otherwise produce
-# a file that does not parse — after the user has already typed their
+# a file that does not parse, after the user has already typed their
 # credentials into it.
 toml_str() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }
 
@@ -164,8 +164,8 @@ fetch_stdout() {
 }
 
 compose() {
-  # -f and --env-file are absolute, but the project directory — which is what
-  # `./meercal.toml` in the compose file resolves against — follows the compose
+  # -f and --env-file are absolute, but the project directory, which is what
+  # `./meercal.toml` in the compose file resolves against, follows the compose
   # file, so these work from wherever the user happens to be standing.
   if [ -f "$ENV_FILE" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
@@ -208,7 +208,7 @@ check_docker() {
 #
 # One function per kind, each *appending* a `[[agent.account]]` block to the
 # file named by $1. Appending to a file rather than writing to stdout because
-# everything else these functions do is talk to the reader — and the first
+# everything else these functions do is talk to the reader, and the first
 # version of this captured the explanatory paragraphs into the config, where
 # tomllib found itself parsing prose.
 #
@@ -242,7 +242,7 @@ ask_caldav_account() {  # <file>
   local target="$1" label url username password only
   say ""
   info "Anything that speaks CalDAV: Nextcloud, Fastmail, Radicale, SOGo, mailbox.org."
-  info "The URL is the DAV root, not one calendar — meercal discovers the calendars"
+  info "The URL is the DAV root, not one calendar. meercal discovers the calendars"
   info "from it. For Nextcloud that is ${DIM}https://cloud.example.com/remote.php/dav${R};"
   info "for Fastmail, ${DIM}https://caldav.fastmail.com/dav/${R}."
   say ""
@@ -291,11 +291,11 @@ ask_google_account() {  # <file>
   info "Basic auth to Google's CalDAV endpoint has been off for years, so an app"
   info "password will not open it the way it opens Gmail. Two ways in:"
   say ""
-  info "  ${B}The easy one${R} — Calendar → Settings → your calendar → Integrate"
+  info "  ${B}The easy one${R}: Calendar → Settings → your calendar → Integrate"
   info "  calendar → ${B}Secret address in iCal format${R}, added here as a feed."
   info "  Read-only, no credentials, works today. Answer ${B}n${R} below for that."
   say ""
-  info "  ${B}The full one${R} — an OAuth client of your own (Google Cloud Console →"
+  info "  ${B}The full one${R}: an OAuth client of your own (Google Cloud Console →"
   info "  Credentials → OAuth client ID → Desktop app), then a refresh token from"
   info "  ${DIM}python -m agent.google_auth${R}. Read and write."
   say ""
@@ -326,11 +326,11 @@ ask_accounts() {  # ask_accounts <file>
   while [ "$more" = 1 ]; do
     head1 "Where are your calendars?"
     choice="$(ask_choice 1 \
-      "Apple iCloud — the family calendar, with an app-specific password" \
-      "CalDAV — Nextcloud, Fastmail, Radicale, SOGo, anything standard" \
-      "A published .ics feed — read-only, no credentials" \
+      "Apple iCloud: the family calendar, with an app-specific password" \
+      "CalDAV: Nextcloud, Fastmail, Radicale, SOGo, anything standard" \
+      "A published .ics feed: read-only, no credentials" \
       "Google Calendar" \
-      "None for now — I will add them later")"
+      "None for now, I will add them later")"
     case "$choice" in
       1) ask_icloud_account "$target" ;;
       2) ask_caldav_account "$target" ;;
@@ -347,20 +347,20 @@ ask_accounts() {  # ask_accounts <file>
 write_env() {  # write_env <port> <bind> <db_port>
   umask 077
   cat > "$ENV_FILE" <<EOF
-# Written by meercal.sh. Container topology and credentials only — everything
+# Written by meercal.sh. Container topology and credentials only; everything
 # about the calendar itself lives in meercal.toml beside this file.
 
 # The release this install is pinned to. \`meercal.sh update\` moves it.
 MEERCAL_VERSION=$(latest_version)
 
 # Who the containers run as. meercal.toml is mode 0600 and holds calendar
-# passwords, and a bind mount carries the host's ownership straight through —
+# passwords, and a bind mount carries the host's ownership straight through,
 # so the containers run as the user that owns the file rather than as root.
 MEERCAL_UID=$(id -u)
 MEERCAL_GID=$(id -g)
 
 # Where the UI is published. Keep the 127.0.0.1 bind unless you have put TLS
-# and a password in front of it — see server.password in meercal.toml.
+# and a password in front of it; see server.password in meercal.toml.
 MEERCAL_BIND=$2
 MEERCAL_PORT=$1
 
@@ -380,7 +380,7 @@ write_config() {  # write_config <accounts-block-file> <password> <timezone> <we
   umask 077
   {
     cat <<EOF
-# meercal — written by meercal.sh on $(date +%Y-%m-%d).
+# meercal: written by meercal.sh on $(date +%Y-%m-%d).
 #
 # Every setting here can be overridden by an environment variable of the same
 # name in upper case; the environment wins over this file. The full reference,
@@ -458,7 +458,7 @@ latest_version() {
   esac
 }
 
-port_free() {  # port_free <port> — best effort; a busy port is worth catching early
+port_free() {  # port_free <port>; best effort, a busy port is worth catching early
   if have ss; then ! ss -ltn 2>/dev/null | grep -q ":$1 "
   elif have lsof; then ! lsof -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
   else return 0; fi
@@ -500,7 +500,7 @@ cmd_setup() {
   bind="127.0.0.1"
   say ""
   info "By default only this machine can reach it. Answering yes below publishes"
-  info "it on every interface — do that only behind TLS, and set a password when"
+  info "it on every interface. Do that only behind TLS, and set a password when"
   info "asked in a moment."
   ask_yn "Make it reachable from other machines?" n && bind="0.0.0.0"
 
@@ -523,7 +523,7 @@ cmd_setup() {
   interval="$(ask "Seconds between sync passes" "300")"
 
   # Global, and guarded in the trap: the trap body is evaluated at exit, in a
-  # scope where a `local` of this function no longer exists — and under `set -u`
+  # scope where a `local` of this function no longer exists, and under `set -u`
   # that turned a finished install into "unbound variable" and exit 1.
   accounts_file="$(mktemp)"
   trap 'rm -f "${accounts_file:-}"' EXIT
@@ -542,7 +542,7 @@ cmd_setup() {
   # offline right now) has the images already, and `up` below fails loudly and
   # specifically if one is genuinely missing. A pull that cannot reach the Hub
   # is not a reason to abandon a configuration the user has just typed.
-  compose pull || warn "Could not pull from Docker Hub — using whatever is already on this machine."
+  compose pull || warn "Could not pull from Docker Hub; using whatever is already on this machine."
   head1 "Starting"
   compose up -d
   if ! wait_for_health; then
@@ -563,7 +563,7 @@ cmd_setup() {
     info "  ${B}$0 demo${R}    to fill it with a week worth looking at first"
   else
     say ""
-    info "The first sync is running now — ${B}$0 logs agent${R} watches it work through"
+    info "The first sync is running now. ${B}$0 logs agent${R} watches it work through"
     info "your calendars. ${B}$0 test${R} checks every account and changes nothing."
   fi
   say ""
@@ -587,9 +587,9 @@ wait_for_health() {
 
 # --- everyday commands --------------------------------------------------------
 
-cmd_start()   { require_configured; compose up -d; ok "Running — $(web_url)"; }
+cmd_start()   { require_configured; compose up -d; ok "Running: $(web_url)"; }
 cmd_stop()    { require_configured; compose stop; ok "Stopped. \`start\` brings it back with everything intact."; }
-cmd_restart() { require_configured; compose up -d --force-recreate; ok "Restarted — $(web_url)"; }
+cmd_restart() { require_configured; compose up -d --force-recreate; ok "Restarted: $(web_url)"; }
 cmd_logs()    { require_configured; compose logs -f --tail 200 ${1:+"$1"}; }
 cmd_psql()    { require_configured; compose exec db psql -U "$(pg_user)" -d "$(pg_db)"; }
 
@@ -601,7 +601,7 @@ cmd_status() {
   info "url:     $(web_url)"
   rule
   compose ps
-  # What the app itself thinks, which is the question behind "is it working" —
+  # What the app itself thinks, which is the question behind "is it working":
   # a container can be up and an account still not syncing.
   if have curl; then
     local status
@@ -632,7 +632,7 @@ cmd_sync() {
 cmd_demo() {
   require_configured
   compose run --rm server python tools/seed_demo.py --reset
-  ok "Demo calendars added — $(web_url)"
+  ok "Demo calendars added: $(web_url)"
   info "They are a normal local account called Demo; delete it in the app when done."
 }
 
@@ -668,7 +668,7 @@ cmd_restore() {
   compose stop server agent >/dev/null 2>&1 || true
   compose exec -T db pg_restore -U "$(pg_user)" -d "$(pg_db)" --clean --if-exists < "$src"
   compose up -d
-  ok "Restored — $(web_url)"
+  ok "Restored: $(web_url)"
 }
 
 # --- lifecycle ----------------------------------------------------------------
@@ -687,7 +687,7 @@ cmd_update() {
     ask_yn "Re-pull the images anyway?" n || return 0
   fi
 
-  # The compose file ships with the release, so it moves with it — a new
+  # The compose file ships with the release, so it moves with it. A new
   # service or a renamed variable would otherwise be missed on upgrade.
   install_compose_file
   if [ -n "$latest" ] && [ "$latest" != "latest" ]; then
@@ -698,7 +698,7 @@ cmd_update() {
   fi
   compose pull
   compose up -d
-  ok "Now on $latest — $(web_url)"
+  ok "Now on $latest: $(web_url)"
   info "The database migrates itself on first boot; nothing else to do."
 }
 
@@ -720,7 +720,7 @@ cmd_uninstall() {
   head1 "Uninstall"
   warn "This stops the containers and removes them."
   local drop=1
-  ask_yn "Also delete the database volume — every event meercal holds?" n || drop=0
+  ask_yn "Also delete the database volume, every event meercal holds?" n || drop=0
   if [ "$drop" = 1 ]; then
     compose down -v
     ok "Containers and data removed."
@@ -750,7 +750,7 @@ cmd_version() {
 
 cmd_help() {
   cat <<EOF
-${B}meercal${R} — a calendar for people who have too many calendars
+${B}meercal${R}: a calendar for people who have too many calendars
 
   ${B}bash $0${R}                 set it up (the default), or reconfigure
 
@@ -758,7 +758,7 @@ ${B}meercal${R} — a calendar for people who have too many calendars
   ${B}$0 stop${R}        stop them, keeping everything
   ${B}$0 restart${R}     restart them, picking up config changes
   ${B}$0 status${R}      what is running, and whether the accounts are syncing
-  ${B}$0 logs${R} [svc]  follow the logs — svc is server, agent or db
+  ${B}$0 logs${R} [svc]  follow the logs; svc is server, agent or db
   ${B}$0 test${R}        check every configured calendar account, change nothing
   ${B}$0 sync${R}        run one sync pass now and print what it did
   ${B}$0 config${R}      edit meercal.toml, then restart
@@ -772,7 +772,7 @@ ${B}meercal${R} — a calendar for people who have too many calendars
 
 Files, all under ${B}$MEERCAL_HOME${R}:
 
-  meercal.toml        your configuration — calendars, password, places (0600)
+  meercal.toml        your configuration: calendars, password, places (0600)
   .env                ports, database credentials, the pinned version
   docker-compose.yml  the release's own compose file
   backups/            whatever ${B}backup${R} has written

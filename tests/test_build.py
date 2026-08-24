@@ -52,8 +52,8 @@ def test_patching_keeps_what_this_program_does_not_model():
     # The alarm and the X- property are the point: a round trip through a parse
     # and a re-serialise would drop both, and the phone that set them would
     # quietly lose its reminder.
-    patched = patch_ics(ORIGINAL, an_event(summary="Jour fixe — platform"))
-    assert "SUMMARY:Jour fixe — platform" in patched
+    patched = patch_ics(ORIGINAL, an_event(summary="Jour fixe · platform"))
+    assert "SUMMARY:Jour fixe · platform" in patched
     assert "SUMMARY:Jour fixe\r\n" not in patched
     assert "BEGIN:VALARM" in patched
     assert "X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC" in patched

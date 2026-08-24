@@ -1,7 +1,7 @@
 /* Stand the app down while it is not the one in front.
 
-   meercal in the background is a much cheaper thing than meerail is — one
-   status poll every thirty seconds, no open stream — so this module is
+   meercal in the background is a much cheaper thing than meerail is (one
+   status poll every thirty seconds, no open stream) so this module is
    correspondingly small. It exists for the other half of the trade anyway:
    coming *back*. A calendar left open overnight behind a browser is showing
    yesterday, and the agent has been syncing all the while. The honest thing on
@@ -18,13 +18,13 @@
        front" actually means.
 
    In a plain browser tab only the first of those ever fires, and everything
-   still works — the module simply stands down less often. */
+   still works; the module simply stands down less often. */
 
 window.App = window.App || {};
 
 App.power = (() => {
   /* How long a focus loss has to last before standing down. Alt-tabbing out and
-     straight back is common, and resuming reloads the range — so flapping would
+     straight back is common, and resuming reloads the range, so flapping would
      cost more than the polling it saves. Losing *visibility* skips the wait:
      there is nothing on screen to interrupt behind a minimised window. */
   const GRACE = 3000;

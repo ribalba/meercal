@@ -7,7 +7,7 @@
 # Radicale, because it is a real CalDAV implementation in one small container:
 # the agent's discovery, sync-collection, multiget and PUT paths all run against
 # it exactly as they would against iCloud. That is the half of this program that
-# cannot be unit-tested — a mock of a protocol only proves the mock.
+# cannot be unit-tested: a mock of a protocol only proves the mock.
 set -euo pipefail
 
 NAME=meercal-radicale

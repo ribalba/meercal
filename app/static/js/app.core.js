@@ -1,4 +1,4 @@
-/* meercal core: the App namespace — API client, time helpers, shared state.
+/* meercal core: the App namespace, API client, time helpers, shared state.
 
    One rule runs through this file: **the browser does no timezone
    arithmetic.** The server sends wall-clock strings already in the display
@@ -41,7 +41,7 @@ App.api = {
   put(path, body) { return this.request("PUT", path, body); },
   del(path) { return this.request("DELETE", path); },
 
-  // One overlay and one promise however many requests hit 401 at once — which
+  // One overlay and one promise however many requests hit 401 at once, which
   // is what happens when a month-long session expires mid-use and four panes
   // reload together.
   promptLogin() {
@@ -99,7 +99,7 @@ App.time = {
   day(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); },
   addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes()); },
   addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, d.getDate()); },
-  /* Whole days between two dates, by date only — the count the span bars are
+  /* Whole days between two dates, by date only: the count the span bars are
      laid out from, so it must not be a millisecond division: an hour of DST
      inside the interval would round it to the wrong integer. */
   daysBetween(a, b) {
@@ -122,7 +122,7 @@ App.time = {
   },
   isToday(d) { return this.ymd(d) === this.ymd(new Date()); },
   /* Always H:MM, never a bare hour. "10" beside a title reads as a number in
-     the title — a count, an issue, a room — and only "10:00" reads as a time.
+     the title (a count, an issue, a room) and only "10:00" reads as a time.
      The two characters are worth it. */
   time(d) {
     return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -178,7 +178,7 @@ App.load = {
   },
 
   /* Everything overlapping [start, end). One request per repaint, whatever the
-     number of calendars — the server expands recurrence into rows so that this
+     number of calendars: the server expands recurrence into rows so that this
      is a range scan and not twenty rule engines. */
   async events(start, end) {
     const params = new URLSearchParams({
@@ -233,8 +233,8 @@ App.tint = (hex, alpha) => {
 
 /* The mouse wheel, as a way of moving through time.
 
-   In the grid views there is nothing below the fold worth a wheel of its own —
-   a month is a month — so the wheel moves to the next one. The week and day
+   In the grid views there is nothing below the fold worth a wheel of its own
+   (a month is a month) so the wheel moves to the next one. The week and day
    grids *are* scrollable, though: the hours have to stay reachable. So the rule
    is "scroll first, then step": the wheel scrolls the hour grid until it runs
    out, and only a wheel at the edge changes the date. That is the same
@@ -250,7 +250,7 @@ App.wheel = {
   COOLDOWN: 420,
 
   /* Attach once, for the life of the page. The accumulator and the cooldown
-     live in the closure, and a step re-renders the view — so re-attaching per
+     live in the closure, and a step re-renders the view, so re-attaching per
      render handed every wheel event a fresh cooldown of zero, and one flick
      walked through six months. */
   attach(el, onStep) {
@@ -293,8 +293,8 @@ App.wheel = {
 
 /* Icons, as inline SVG.
 
-   The chrome used typographic stand-ins for a while — ⌕ for search, ↻ for
-   refresh — and they are a poor deal: the glyph is whatever the user's font
+   The chrome used typographic stand-ins for a while (⌕ for search, ↻ for
+   refresh) and they are a poor deal: the glyph is whatever the user's font
    decides it is, it sits on the text baseline rather than in the middle of its
    button, and ⌕ in particular renders as an unrecognisable blob in most UI
    fonts. These are drawn instead, in one weight, and they take `currentColor`
@@ -312,8 +312,12 @@ App.icons = {
   right: '<polyline points="9.5 5 16 12 9.5 19"/>',
   pencil: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><line x1="14.5" y1="7.5" x2="17.5" y2="10.5"/>',
   solo: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+  bell: `<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.7 21a2 2 0 0 1-3.4 0"/>`,
   menu: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/>'
       + '<line x1="4" y1="17" x2="20" y2="17"/>',
+  download: '<path d="M12 3.5v11"/><polyline points="7.5 10 12 14.5 16.5 10"/>'
+          + '<path d="M4.5 17.5v2a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-2"/>',
 };
 
 App.icon = (name, size = 17) => {

@@ -1,8 +1,8 @@
-# meercal-agent — the half that holds your calendar passwords.
+# meercal-agent: the half that holds your calendar passwords.
 #
 # Unlike meerail's agent, this one has nothing on the host it needs to reach:
 # CalDAV servers are out on the internet, so the agent is an ordinary container
-# on the compose network. The credentials still never leave your machine — they
+# on the compose network. The credentials still never leave your machine: they
 # live in meercal.toml, mounted read-only into this container and nowhere else.
 FROM python:3.13-slim
 

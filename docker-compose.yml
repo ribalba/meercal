@@ -3,7 +3,7 @@ services:
     image: postgres:18
     # A calendar is small: years of twenty calendars is tens of megabytes, not
     # the tens of gigabytes meerail's mail store runs to. The defaults are
-    # therefore left alone here — this is the one place in the suite where
+    # therefore left alone here. This is the one place in the suite where
     # Postgres does not need tuning.
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-meercal}
@@ -11,8 +11,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-meercal}
     networks: [meercal]
     ports:
-      # On the host's loopback so the agent — which runs natively, beside your
-      # credentials — can reach it. The 127.0.0.1 prefix is load-bearing: drop
+      # On the host's loopback so the agent, which runs natively beside your
+      # credentials, can reach it. The 127.0.0.1 prefix is load-bearing: drop
       # it and Docker publishes on 0.0.0.0, straight through the host firewall
       # to a database with the default password.
       #
@@ -33,7 +33,7 @@ services:
     build: .
     image: meercal-server:local
     # The config file is mode 0600 on the host and holds calendar passwords, so
-    # the container has to run as the user that owns it — a bind mount carries
+    # the container has to run as the user that owns it: a bind mount carries
     # the host's ownership through, and the image's own unprivileged user
     # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
     # passes the current user's. Running as root instead would read it, and is
@@ -44,7 +44,7 @@ services:
         condition: service_healthy
     environment:
       # Container topology only. Everything else comes from meercal.toml, which
-      # is why nothing here sets a value it does not mean — an entry with a
+      # is why nothing here sets a value it does not mean. An entry with a
       # ${VAR:-default} fallback is always set, and would override the file.
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
     volumes:

@@ -1,8 +1,8 @@
-/* meercal theme — light, dark, or whatever the system says.
+/* meercal theme: light, dark, or whatever the system says.
 
    Loaded from <head>, ahead of every other module: the attribute has to be on
    <html> before the first paint, or a forced-light window on a dark machine
-   comes up dark for a frame. Shares its shape with meerail's, deliberately —
+   comes up dark for a frame. Shares its shape with meerail's, deliberately:
    the two run side by side and should not disagree about what dark means. */
 
 window.App = window.App || {};

@@ -1,4 +1,4 @@
-"""meercal-server — the web layer.
+"""meercal-server: the web layer.
 
 It reads the database and enqueues what the user does. It never speaks CalDAV,
 holds no calendar credentials, and has no code path that could send one
@@ -19,7 +19,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from core.config import get_settings
 from core.database import init_db
 from core.version import VERSION
-from .routers import auth, calendars, contacts, events, search, state, sync, version
+from .routers import auth, calendars, contacts, events, reminders, search, state, sync, version
 from .security import require_auth
 
 settings = get_settings()
@@ -36,14 +36,14 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="meercal",
     version=VERSION,
-    description="The meercal calendar — many calendars, seen at once.",
+    description="The meercal calendar: many calendars, seen at once.",
     lifespan=lifespan,
 )
 
 if settings.trusted_proxies:
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_proxies)
 
-for module in (auth, version, state, calendars, events, search, contacts, sync):
+for module in (auth, version, state, calendars, events, search, contacts, sync, reminders):
     app.include_router(module.router)
 
 

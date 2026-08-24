@@ -2,7 +2,7 @@
 
    It is a *filter*, not a separate results page: what it narrows is the view
    you are already in, so "every dentist appointment this year" is the calendar
-   with only those in it — still in date order, still with the long things in
+   with only those in it, still in date order, still with the long things in
    the rail beside them. Pressing Enter with nothing else in mind runs the same
    words as a search across every calendar, hidden ones included, because
    "which calendar was that on" is exactly what you do not remember. */

@@ -1,10 +1,10 @@
-/* Date and time pickers — the pills in the event panel and what drops out of
+/* Date and time pickers: the pills in the event panel and what drops out of
    them.
 
    The browser's own `datetime-local` control is one field holding two different
    decisions, and every browser draws it differently. Splitting it into a date
    pill and two time pills makes each decision one click: the date opens a month
-   you can see, and a time opens a list you can scroll — with the end times
+   you can see, and a time opens a list you can scroll, with the end times
    labelled by how long that makes the event, which is the number you actually
    have in mind ("half an hour", not "13:30").
 
@@ -38,7 +38,7 @@ App.picker = (() => {
   }
 
   /* Anchored under the pill that opened it, nudged back inside the window if
-     that would put it off an edge — the panel is 560px wide and the end-time
+     that would put it off an edge: the panel is 560px wide and the end-time
      pill lives near its corner, with the lower fields close to the bottom. */
   function popover(anchor, content) {
     close();
@@ -108,7 +108,7 @@ App.picker = (() => {
     return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
   }
 
-  /* "45 min", "1 hr", "1 hr 30 min" — how long the event becomes if you pick
+  /* "45 min", "1 hr", "1 hr 30 min": how long the event becomes if you pick
      this end time. The end time is a means; the length is what is actually
      being decided, so the list says both. */
   function duration(minutes) {

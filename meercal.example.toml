@@ -1,4 +1,4 @@
-# meercal configuration — one file for the whole system.
+# meercal configuration: one file for the whole system.
 #
 #   cp meercal.example.toml meercal.toml && chmod 600 meercal.toml
 #
@@ -7,7 +7,7 @@
 # section, so a machine running only one of them leaves the rest at its default.
 #
 # EVERY setting here can be overridden by an environment variable of the same
-# name in upper case — server.password is SERVER_PASSWORD, database.url is
+# name in upper case: server.password is SERVER_PASSWORD, database.url is
 # DATABASE_URL. The environment wins over this file, and a .env beside it sits
 # between the two:
 #
@@ -39,7 +39,7 @@ secret_key = "dev-insecure-secret-change-me"
 password = ""
 
 # The zone the calendar is drawn in. "system" follows the host. Everything is
-# stored in UTC; this is only how it is displayed — and the one exception is
+# stored in UTC; this is only how it is displayed, and the one exception is
 # all-day events, which are dates and never move between zones.
 timezone = "system"
 
@@ -48,7 +48,7 @@ timezone = "system"
 week_start = 1
 
 # The hours the day grid shows before you scroll. Outside them the grid is still
-# there — events never hide — it just opens on the part of the day you work in.
+# there (events never hide), it just opens on the part of the day you work in.
 day_start = 8
 day_end = 20
 
@@ -65,6 +65,11 @@ horizon_future_days = 1095
 # Trusted reverse proxies, if TLS is terminated in front of this. Without it
 # every request looks like it came from the proxy.
 trusted_proxies = []
+
+# Once a day, ask github whether a newer meercal is out, and show a quiet strip
+# in the sidebar if so. This is the *only* outbound request the server makes;
+# false means it makes none at all, ever, not that the banner is hidden.
+update_check = true
 
 # Places you type over and over, offered as chips under the event panel's
 # "Where" field. The key is the label on the chip; the value is what goes into
@@ -88,6 +93,217 @@ trusted_proxies = []
 database_url = ""
 
 
+# --- reminders ----------------------------------------------------------------
+# The one part of meercal that speaks first.
+#
+# Only the agent reads this section: it is the half that holds credentials and
+# the half that has a session bus, and a container can neither show you a
+# desktop notification nor be trusted with a Twilio token. The scheduler runs
+# beside the sync loop (or alone: `python -m agent.remind`).
+#
+# Two commands are worth knowing before you write any of it:
+#
+#   python -m agent.remind --test       one real notification per channel
+#   python -m agent.remind --next 24h   what would fire, and what is muted
+#
+# The second is the dry run that makes a config change safe to make at 23:00,
+# and the answer to "why didn't it ring".
+[reminders]
+# A kill switch. Leaving it out changes nothing: with no rules below, the loop
+# is never started in the first place.
+enabled = true
+
+# Seconds between passes. Cheap (a pass with nothing due is two indexed
+# queries), so this is about how precise a reminder feels, not about load.
+tick = 30
+
+# How late a reminder may still be delivered. A laptop suspended at 08:40 and
+# opened at 09:40 has an armed 09:00 reminder waiting: inside this window it
+# fires and says it is late, outside it it is recorded as missed rather than
+# silently vanishing. A phone call gets a much shorter one of its own.
+grace = 600
+
+# Local wall time. Held by meercal rather than left to the desktop, because a
+# `critical` notification bypasses Plasma's Do Not Disturb by design, which is
+# the urgency a reminder wants, so the rule has to live here. A reminder whose
+# *event* falls inside the window still fires; one that would merely arrive
+# inside it is held until the window ends. A channel can opt out entirely.
+# quiet_hours = "23:00-07:00"
+
+# Where "before" starts for an event with no clock on it. "Ten minutes before"
+# is meaningless for a birthday; this gives every all-day event a notional time
+# for lead times to be measured from.
+all_day_at = "09:00"
+
+# This dispatcher's name, matched against a channel's `host`. Defaults to the
+# machine's own hostname. Two machines can share one database: the desktop
+# notification has to happen where you are sitting, the phone call does not.
+# host = "thinkpad"
+
+# How long delivered and missed reminders are kept, for the UI to show.
+retention_days = 30
+
+
+# --- channels ---
+# Where a reminder goes. One block per destination; a rule names them by the
+# table key, so [reminders.channel.desk] is "desk".
+#
+# Every channel takes these, whatever it sends over:
+#   enabled, host, detail, max_per_day, ignore_quiet_hours, grace, title, body
+#
+# `title` and `body` are templates over {summary} {when} {start} {location}
+# {calendar} {description}, plus {calendar_suffix} and {location_suffix} which
+# render as " · Family" and "" respectively, so one template reads correctly
+# whether or not the field is set.
+
+# A notification on this machine, through notify-send.
+#
+# This one is tied to a machine in a way the others are not, and meercal knows
+# it: a dispatcher with no session bus (an agent in a container, or under a
+# systemd *system* unit) will not claim these reminders at all, and leaves
+# them in the queue for the desktop that can actually show them. Set `host` if
+# you have more than one machine that could.
+[reminders.channel.desk]
+kind = "desktop"
+# `critical` is the one that matters: on Plasma and GNOME it means the
+# notification does not expire on its own. A reminder that fades after four
+# seconds while you are looking at another screen has reminded nobody.
+urgency = "critical"
+# A canberra event name, a path to a sound file, or "" for silence.
+sound = "message"
+# icon = "/usr/share/icons/hicolor/128x128/apps/meercal.png"
+
+# A push to a phone, over ntfy. https://ntfy.sh, or your own.
+#
+# READ THIS BEFORE POINTING IT AT ntfy.sh: a public topic is readable by anyone
+# who knows or guesses its name, and what goes over it is the titles of your
+# appointments. Make the topic long and random rather than "meercal-didi", and
+# consider `detail`. Self-hosting ntfy with auth is the real answer.
+# [reminders.channel.phone]
+# kind = "ntfy"
+# server = "https://ntfy.sh"
+# topic = "meercal-7f3a91c4e05b"     # long and random: the topic IS the password
+# token_env = "NTFY_TOKEN"           # read from the environment, not written here
+# priority = 4                       # 1-5; 5 can break through a phone's DND
+# tags = ["calendar"]
+# # full   title, time, calendar and place
+# # title  the title and the time, nothing else
+# # none   "a reminder", and you open the app to see what it was
+# detail = "full"
+# # Where tapping it goes. Only useful if the phone can actually reach meercal.
+# click = "http://127.0.0.1:8010/"
+
+# A phone call. Twilio's Calls endpoint takes the TwiML inline, so this needs
+# no publicly reachable webhook: one authenticated POST and nothing exposed.
+#
+# This is the channel that costs money and wakes people. Run
+# `python -m agent.remind --test` before any rule points at it: it verifies the
+# credentials without placing a call.
+# [reminders.channel.call]
+# kind = "twilio"
+# account_sid = "AC…"
+# auth_token_env = "TWILIO_AUTH_TOKEN"   # keep the token out of this file
+# from = "+4930…"                        # a number you own on Twilio
+# to = "+49170…"
+# mode = "call"                          # or "sms"
+# say = "{summary}. {when}."
+# voice = "Polly.Vicki"
+# language = "de-DE"
+# repeat = 2                    # a sentence heard once, half asleep, is not heard
+# max_per_day = 6               # a hard stop, because this one has a bill
+# ignore_quiet_hours = true     # the point of a call is that it wakes you
+# grace = 300                   # a call about a meeting that ended is worse than none
+
+# A notification in the meercal window, while it is open. Claimed by the
+# browser from the same queue as everything else, so it composes with the rest
+# rather than being a second way for a reminder to happen. The only channel
+# that works on a machine where the agent is not running.
+# [reminders.channel.window]
+# kind = "app"
+
+# The escape hatches. Between them they cover Home Assistant, a smart bulb,
+# signal-cli, and whatever comes next.
+# [reminders.channel.lamp]
+# kind = "command"
+# # The reminder arrives in the environment: MEERCAL_SUMMARY, MEERCAL_WHEN,
+# # MEERCAL_START, MEERCAL_CALENDAR, MEERCAL_LOCATION, MEERCAL_TITLE.
+# argv = ["/home/you/bin/flash-the-lamp"]
+#
+# [reminders.channel.hass]
+# kind = "webhook"
+# url = "http://homeassistant.local:8123/api/webhook/meercal"
+# token_env = "HASS_TOKEN"
+
+
+# --- rules ---
+# Which events get a reminder, how long before, and on what.
+#
+# `match` is a filter string in exactly the language the filter bar takes,
+# `cal:work is:busy with:anna in:berlin`, so there is nothing new to learn,
+# and a rule can be worked out by typing it into the bar and looking.
+#
+# Order does not matter: every rule is evaluated, and two rules asking for the
+# same moment on the same channel produce one reminder, not two.
+
+# [[reminders.rule]]
+# name = "everything, on screen"
+# match = ""                     # empty matches every event
+# lead = "10m"
+# channels = ["desk"]
+#
+# [[reminders.rule]]
+# name = "work, on the phone too"
+# match = "cal:work is:busy"
+# except = "Lunch"               # subtracted from the match; see below
+# lead = ["1h", "10m"]           # a list arms one reminder per entry
+# channels = ["desk", "phone"]
+#
+# [[reminders.rule]]
+# name = "birthdays, the evening before"
+# match = "is:allday cal:birthdays"
+# at = "-1d 18:00"               # an absolute wall clock, not a lead time
+# channels = ["phone"]
+#
+# [[reminders.rule]]
+# name = "whatever the server said"
+# match = "cal:shared"
+# lead = "valarm"                # defer to the event's own VALARM, so meercal
+# channels = ["desk"]            # agrees with the alarm your phone already set
+#
+# Also available on a rule:
+#   regex = true            hand `match` to Postgres as a POSIX pattern
+#   visible_only = true     skip calendars that are switched off. Off by
+#                           default: hiding a calendar is about drawing it,
+#                           not about the data, and the same is true of search.
+
+
+# --- the last word ------------------------------------------------------------
+# A rule is a statement about a *kind* of event, and there is always an event
+# that is the wrong kind. A daily "Lunch" matches `cal:work is:busy` as squarely
+# as a client meeting does, and no filter string can see the difference.
+#
+# So the event wins. The bell in the event panel sets a channel to one of three
+# things, and **auto is not the same as on**:
+#
+#   auto   whatever the rules say: the default, and it follows a rule you
+#          write next month
+#   on     always, whether or not a rule matched
+#   off    never, including against rules that do not exist yet
+#
+# "Never call me about lunch" is therefore one bit that stays true, and the
+# desktop popup still arrives because only the call was muted. For a shape of
+# event rather than one event, anything called Lunch on any calendar forever,
+# `except` on the rule is the better place.
+#
+# Resolved in this order, and `off` beats `on`:
+#
+#   1  this occurrence     the panel, "This event only"
+#   2  the whole series    the panel, "All events"
+#   3  the event's VALARM  only for a rule with lead = "valarm"
+#   4  matching rules      here
+#   5  nothing fires
+
+
 # --- agent --------------------------------------------------------------------
 # Only the agent reads this section. It is the only place calendar credentials
 # are configured, and it never leaves your machine.
@@ -97,14 +313,14 @@ database_url = ""
 interval = 300
 
 # One block per calendar account. Repeat [[agent.account]] for as many as you
-# have — the whole point of this program is that there are a lot of them.
+# have: the whole point of this program is that there are a lot of them.
 #
-# kind = "icloud"  — Apple Calendar, shared with your family. Requires an
+# kind = "icloud"    Apple Calendar, shared with your family. Requires an
 #                    app-specific password from appleid.apple.com; your normal
 #                    password will not work, and neither will 2FA prompts.
-# kind = "google"  — Google Calendar over CalDAV. Requires an App Password with
+# kind = "google"    Google Calendar over CalDAV. Requires an App Password with
 #                    2-Step Verification on, same as meerail needs for Gmail.
-# kind = "caldav"  — anything else: Nextcloud, Fastmail, Radicale, SOGo.
+# kind = "caldav"    anything else: Nextcloud, Fastmail, Radicale, SOGo.
 #
 # [[agent.account]]
 # label = "Family"

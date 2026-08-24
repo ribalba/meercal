@@ -7,7 +7,7 @@ renders here is a shot the app actually produces.
     python website/screenshots/shoot.py
     python website/screenshots/shoot.py --only ribbon
 
-Output lands in website/public/img/screenshots/ at 2x device scale — the page
+Output lands in website/public/img/screenshots/ at 2x device scale: the page
 serves 2880x1800 files and displays them at half that, so they stay sharp on
 retina panels.
 
@@ -49,7 +49,7 @@ def shot(page, name: str) -> None:
 
 
 # Appended to every filename this pass writes: "" for light, "-dark" for the
-# dark one. Set once per context rather than renamed afterwards — renaming
+# dark one. Set once per context rather than renamed afterwards: renaming
 # after the fact overwrites the light shot taken moments earlier.
 SUFFIX = ""
 
@@ -106,7 +106,7 @@ def search(page):
 
 @register
 def sets(page):
-    """The set editor — the answer to "how do I change what is in a set"."""
+    """The set editor: the answer to "how do I change what is in a set"."""
     boot(page, "ribbon")
     page.hover(".set-row")
     page.click(".set-row .set-edit")

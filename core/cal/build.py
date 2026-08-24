@@ -1,7 +1,7 @@
 """Events back out as iCalendar, for the agent to PUT.
 
 Round-tripping through a parse and a re-serialise loses every property this
-program does not model — alarms, attachments, X- properties a phone put there.
+program does not model: alarms, attachments, X- properties a phone put there.
 So an event that *came from a server* keeps its original text in
 ``raw_ics`` and is patched line by line; only an event created here is built
 from nothing. That is the difference between editing a calendar and rewriting
@@ -49,7 +49,7 @@ def _vevent(event: Event) -> IEvent:
         ve.add("transp", "TRANSPARENT")
 
     if event.all_day:
-        # VALUE=DATE on both ends, and DTEND exclusive — the day after the last
+        # VALUE=DATE on both ends, and DTEND exclusive: the day after the last
         # day. icalendar writes the DATE form for a `date`, which is why the
         # conversion here is to `.date()` and not to a midnight datetime.
         ve.add("dtstart", event.dtstart.date())

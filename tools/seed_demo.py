@@ -2,7 +2,7 @@
 """Fill an empty database with a calendar set worth looking at.
 
 Not a fixture: the point is to make the *shape* of a real week visible without
-anyone having to hand over their iCloud password to see it — several calendars
+anyone having to hand over their iCloud password to see it: several calendars
 at once, meetings that repeat, two things booked over each other, and the long
 events the Ribbon exists for. Everything is placed relative to today, so it is
 always the current fortnight that is interesting.
@@ -42,7 +42,7 @@ CALENDARS = [
     ("Birthdays", "#db2777", True),
 ]
 
-# name, key, members. Everything is on 0 — the key that always means the lot,
+# name, key, members. Everything is on 0, the key that always means the lot,
 # and the reason the sidebar lists sets in key order.
 SETS = [
     ("Everything", 0, [name for name, _, _ in CALENDARS]),
@@ -71,7 +71,7 @@ def add(
 ) -> Event:
     settings = get_settings()
     # The wall times below are written the way a person would say them, so they
-    # are stated in the zone the app draws in — and stored as the UTC instants
+    # are stated in the zone the app draws in, and stored as the UTC instants
     # everything else in the database is. All-day events are dates and are not
     # converted at all; see core/timeutil.
     tz_id = "UTC" if all_day else str(display_zone(settings.timezone))
@@ -110,8 +110,8 @@ def seed(reset: bool) -> None:
         if reset:
             if existing:
                 db.delete(existing)
-            # The sets are not owned by the account — they name calendars from
-            # anywhere — so the cascade does not reach them, and their names
+            # The sets are not owned by the account (they name calendars from
+            # anywhere) so the cascade does not reach them, and their names
             # are unique. Clearing them is unconditional under --reset: a run
             # that failed halfway leaves the account gone and the sets behind,
             # and the next --reset has to be able to finish the job.
@@ -146,13 +146,13 @@ def seed(reset: bool) -> None:
             return monday + timedelta(days=day_offset, hours=hour, minutes=minute)
 
         # --- the long ones: what the Ribbon is for -------------------------
-        add(db, cals["Travel"], "Tokyo — customer visit + workshop",
+        add(db, cals["Travel"], "Tokyo: customer visit + workshop",
             monday + timedelta(days=9), monday + timedelta(days=28),
             all_day=True, location="Tokyo", note="19 days. The one thing everything else is arranged around.")
         add(db, cals["Work"], "Release freeze 0.9",
             monday - timedelta(days=3), monday + timedelta(days=18),
-            all_day=True, free=True, note="Nothing merges to main. Does not block the calendar — hence the hatching.")
-        add(db, cals["Kita"], "Kita closed — summer",
+            all_day=True, free=True, note="Nothing merges to main. Does not block the calendar, hence the hatching.")
+        add(db, cals["Kita"], "Kita closed: summer",
             monday + timedelta(days=5), monday + timedelta(days=19), all_day=True)
         add(db, cals["On-call"], "On-call",
             monday + timedelta(days=7), monday + timedelta(days=14), all_day=True, free=True)
@@ -164,7 +164,7 @@ def seed(reset: bool) -> None:
         # --- the repeats ---------------------------------------------------
         add(db, cals["Work"], "Standup", at(0, 9, 30), at(0, 9, 45),
             rrule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", people=["anna@example.com", "ben@example.com"])
-        add(db, cals["Work"], "Jour fixe — platform", at(1, 14), at(1, 15),
+        add(db, cals["Work"], "Jour fixe: platform", at(1, 14), at(1, 15),
             rrule="FREQ=WEEKLY;BYDAY=TU", location="Meet", people=["anna@example.com"])
         add(db, cals["Work"], "Sprint review", at(4, 11), at(4, 12), rrule="FREQ=WEEKLY;BYDAY=FR")
         add(db, cals["Family"], "Swimming", at(2, 16, 30), at(2, 17, 30), rrule="FREQ=WEEKLY;BYDAY=WE")
@@ -178,7 +178,7 @@ def seed(reset: bool) -> None:
         add(db, cals["Work"], "Architecture: storage layer", at(2, 10), at(2, 11, 30),
             location="Room 2", note="Whether occurrences stay materialised.")
         add(db, cals["Family"], "Kita pickup", at(2, 10, 30), at(2, 11))   # clashes, on purpose
-        add(db, cals["Work"], "Interview — backend", at(3, 13), at(3, 14))
+        add(db, cals["Work"], "Interview: backend", at(3, 13), at(3, 14))
         add(db, cals["Family"], "Dentist", at(3, 13, 30), at(3, 14, 15))   # and again
         add(db, cals["Work"], "Deploy window", at(4, 17), at(4, 19), free=True)
         add(db, cals["Family"], "Dinner with the Müllers", at(5, 19), at(5, 22), location="Kreuzberg")

@@ -1,6 +1,6 @@
 """Reading a range, and the write path.
 
-The read half is one query (see app/query.py) and is what every view calls —
+The read half is one query (see app/query.py) and is what every view calls.
 Ribbon, week, month and day differ in how they *draw* a range, never in how
 they ask for one.
 
@@ -125,7 +125,7 @@ class EventBody(BaseModel):
 def _queue(db: Session, kind: str, event: Event) -> None:
     """Tell the agent to make this true on the server it came from.
 
-    Skipped for calendars with no server behind them — a local calendar is
+    Skipped for calendars with no server behind them: a local calendar is
     exactly a calendar whose queue would never be drained.
     """
     cal = db.get(Calendar, event.calendar_id)
@@ -206,7 +206,7 @@ def update_event(event_id: int, body: EventBody, db: Session = Depends(get_db)) 
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"{cal.label} is read-only")
     # An edit to a series is an edit to the *whole* series here. Changing one
     # instance means writing an override with a RECURRENCE-ID, and doing that
-    # wrong duplicates the meeting rather than moving it — so until that path
+    # wrong duplicates the meeting rather than moving it, so until that path
     # is written and tested, the UI says "this changes every occurrence" and
     # means it.
     _apply(event, body)

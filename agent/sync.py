@@ -52,7 +52,7 @@ def _client(cfg: AccountConfig) -> tuple[CalDAVClient, str]:
         if not (cfg.client_id and cfg.client_secret and cfg.refresh_token):
             raise CalDAVError(
                 f"{cfg.name}: Google needs client_id, client_secret and refresh_token "
-                "(see agent/google.py) — an app password will not do here"
+                "(see agent/google.py); an app password will not do here"
             )
         token = access_token(cfg.client_id, cfg.client_secret, cfg.refresh_token)
         base = cfg.url or GOOGLE_PRINCIPAL.format(user=cfg.username)
@@ -90,7 +90,7 @@ def _sync_caldav(db: Session, account: Account, cfg: AccountConfig, settings: Se
     with _client(cfg)[0] as client:
         principal = client.principal()
         home = client.calendar_home(principal)
-        # Discovery is where an account actually lives — iCloud sends everyone
+        # Discovery is where an account actually lives: iCloud sends everyone
         # to a personal host, and this is the URL worth showing when it breaks.
         account.url = home
         remote = client.calendars(home)
@@ -149,7 +149,7 @@ def _sync_calendar(
         stored += store_resource(db, cal, resource.href, resource.ics, window, etag=resource.etag)
 
     if listing.complete:
-        # Only after a listing of the whole collection — see ingest.prune.
+        # Only after a listing of the whole collection; see ingest.prune.
         prune(db, cal, {c.href for c in changed})
 
     cal.sync_token = listing.sync_token or cal.sync_token

@@ -61,7 +61,7 @@ distuninstall: distuninstall-$(INSTALL_KIND) ## Remove what distinstall put in p
 distinstall-linux: dist
 	@set -e; \
 	src=$$(ls -t dist/*.AppImage 2>/dev/null | head -n 1); \
-	if [ -z "$$src" ]; then echo "No AppImage in dist/ — is 'linux' a build target?" >&2; exit 1; fi; \
+	if [ -z "$$src" ]; then echo "No AppImage in dist/; is 'linux' a build target?" >&2; exit 1; fi; \
 	echo "Installing $$src -> $(APP_IMAGE)"; \
 	mkdir -p "$(APP_HOME)" "$(BIN_DIR)" "$(DESKTOP_DIR)" "$(ICON_DIR)"; \
 	install -m 0755 "$$src" "$(APP_IMAGE)"; \
@@ -100,12 +100,12 @@ distuninstall-linux:
 # The .dmg is for handing to someone else; installing here means the bundle
 # electron-builder already staged. Copied with ditto rather than cp, which is
 # the one that carries a bundle's symlinks, extended attributes and code
-# signature across intact — an arm64 build is ad-hoc signed and will not launch
+# signature across intact: an arm64 build is ad-hoc signed and will not launch
 # if the copy breaks that.
 distinstall-macos: dist
 	@set -e; \
 	src=$$(ls -td dist/mac*/meercal.app 2>/dev/null | head -n 1); \
-	if [ -z "$$src" ]; then echo "No meercal.app in dist/ — is 'mac' a build target?" >&2; exit 1; fi; \
+	if [ -z "$$src" ]; then echo "No meercal.app in dist/; is 'mac' a build target?" >&2; exit 1; fi; \
 	echo "Installing $$src -> $(MAC_APP)"; \
 	mkdir -p "$(MAC_APP_DIR)" "$(BIN_DIR)"; \
 	rm -rf "$(MAC_APP)"; \
@@ -114,7 +114,7 @@ distinstall-macos: dist
 	echo "Installed. Launch from Spotlight or Launchpad, or run 'meercal' (needs $(BIN_DIR) on PATH)."; \
 	if [ "$(MEERCAL_URL)" != "http://localhost:8010" ]; then \
 		echo; \
-		echo "Note: MEERCAL_URL is not baked into the bundle — macOS does not give a"; \
+		echo "Note: MEERCAL_URL is not baked into the bundle. macOS does not give a"; \
 		echo "      Finder launch your shell environment, so the app menu starts it on"; \
 		echo "      the default http://localhost:8010. To reach $(MEERCAL_URL),"; \
 		echo "      run 'meercal' from a shell that has MEERCAL_URL set."; \

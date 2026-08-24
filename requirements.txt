@@ -11,7 +11,8 @@ psycopg[binary]==3.3.4
 
 # Calendar-specific
 icalendar==7.3.0            # RFC 5545 parsing/serialisation, both halves of the app
-python-dateutil==2.9.0.post0  # rrule expansion — the one hard part of a calendar
+python-dateutil==2.9.0.post0  # rrule expansion, the one hard part of a calendar
 tzdata==2026.3              # IANA zones on hosts that ship none (containers, Windows)
 sse-starlette==2.1.3        # server-sent events: live updates while the agent syncs
 cryptography==44.0.0        # Fernet, if server-side credential storage is enabled
+httpx==0.28.1               # app/updates.py asks GitHub what the newest release is

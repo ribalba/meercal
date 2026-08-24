@@ -1,9 +1,9 @@
-/* Calendar sets — creating them, and changing them afterwards.
+/* Calendar sets: creating them, and changing them afterwards.
 
    A set is the answer to having twenty calendars: you do not think in
    calendars, you think in situations, and a set is one of those with a number
    key on it. Which means a set is something you *keep*, and anything you keep
-   has to be editable — renaming it, moving its key, adding the calendar you
+   has to be editable: renaming it, moving its key, adding the calendar you
    only started using last week.
 
    Clicking a set in the sidebar applies it. Everything else lives behind the
@@ -28,7 +28,7 @@ App.sets = (() => {
     if (first) setTimeout(() => { first.focus(); first.select(); }, 0);
   }
 
-  /* `set` is null for a new one, which starts from whatever is on screen —
+  /* `set` is null for a new one, which starts from whatever is on screen:
      making a set is nearly always "these, the ones I am looking at". */
   function open(set) {
     const editing = Boolean(set);
@@ -45,15 +45,15 @@ App.sets = (() => {
 
     const keys = App.el("div", { class: "key-row" },
       [null, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((key) => {
-        const label = key === null ? "—" : String(key);
+        const label = key === null ? "–" : String(key);
         const owner = key !== null && taken.get(key);
         return App.el("button", {
           class: "key-btn" + ((editing ? set.hotkey : null) === key ? " on" : ""),
           type: "button",
           dataset: { key: key === null ? "" : String(key) },
-          title: owner ? `Currently ${owner}'s — this takes it`
+          title: owner ? `Currently ${owner}'s; this takes it`
                        : key === null ? "No key"
-                       : key === 0 ? "0 — the key that always means everything"
+                       : key === 0 ? "0: the key that always means everything"
                        : `Press ${key}`,
           onclick: (ev) => {
             modal.querySelectorAll(".key-btn").forEach((b) => b.classList.remove("on"));
@@ -77,7 +77,7 @@ App.sets = (() => {
 
     async function save() {
       const chosenKey = modal.querySelector(".key-btn.on");
-      // `dataset.key` is "" for no key and "0" for the zero key — and 0 is
+      // `dataset.key` is "" for no key and "0" for the zero key, and 0 is
       // falsy, so this has to test the string rather than the number.
       const hotkey = chosenKey && chosenKey.dataset.key !== "" ? Number(chosenKey.dataset.key) : null;
       const body = { name: name.value.trim(), hotkey, calendars: [...chosen] };

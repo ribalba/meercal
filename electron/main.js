@@ -89,7 +89,7 @@ function createWindow() {
  *
  * The page can already see `visibilitychange`, but that only fires for a window
  * that is minimised or hidden. A window sitting fully visible behind another is
- * still not the app the user is in — that is the ordinary case on a desktop,
+ * still not the app the user is in, which is the ordinary case on a desktop,
  * and a calendar left open behind a browser polls all day for a screen nobody
  * is looking at. Only the shell knows about it, so the shell says so.
  *
@@ -129,7 +129,7 @@ function trackForeground(win) {
  * Chromium fetches the Hunspell dictionary for each language on first use and
  * caches it under the user data dir, so the first run needs network access; a
  * language whose dictionary hasn't arrived yet simply isn't checked. macOS uses
- * the OS spellchecker instead, which manages its own languages — setting the
+ * the OS spellchecker instead, which manages its own languages: setting the
  * list there is a no-op, so we skip it.
  *
  * Chromium marks misspellings but leaves the correction UI to the app, hence

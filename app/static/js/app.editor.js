@@ -1,4 +1,4 @@
-/* The event panel — read it, change it, or write a new one.
+/* The event panel: read it, change it, or write a new one.
 
    Two things it says out loud rather than hiding:
 
@@ -67,7 +67,7 @@ App.editor = (() => {
     const readOnly = event && event.read_only;
     const start = event ? T().parse(event.start) : (seed ? seed.start : new Date());
     let end = event ? T().parse(event.end) : (seed ? seed.end : new Date(start.getTime() + 3600000));
-    // Shown as the last day rather than the exclusive end — see nextDay().
+    // Shown as the last day rather than the exclusive end; see nextDay().
     if (event && event.all_day) end = T().addDays(end, -1);
 
     const title = App.el("input", { class: "in title-in", value: event ? event.title : "", placeholder: "Title" });
@@ -165,7 +165,7 @@ App.editor = (() => {
     paintWhen();
 
     /* The places you keep typing, from meercal.toml. A calendar's locations are
-       a short list in practice — the office, the room, the same meeting link —
+       a short list in practice (the office, the room, the same meeting link)
        and typing them out again is the sort of thing a program should notice.
        Clicking a chip fills the field; clicking the one already in the field
        clears it, so it toggles rather than being a one-way door. */
@@ -188,19 +188,19 @@ App.editor = (() => {
     paintPlaces();
 
     const description = App.el("textarea", { class: "in", rows: "4", text: (detail && detail.description) || "" });
-    // A rule the presets do not cover — "every Tuesday", "the last Friday of
-    // the month" — gets an option of its own, carrying the original text.
+    // A rule the presets do not cover ("every Tuesday", "the last Friday of
+    // the month") gets an option of its own, carrying the original text.
     // Without it the select falls back to "Does not repeat", and saving an
     // unrelated edit silently deletes the recurrence.
     const rule = (detail && detail.rrule) || "";
     const known = REPEATS.some(([value]) => value === rule);
-    const options = known ? REPEATS : [...REPEATS, [rule, `Repeats — ${rule}`]];
+    const options = known ? REPEATS : [...REPEATS, [rule, `Repeats: ${rule}`]];
     const repeat = App.el("select", { class: "in" },
       options.map(([value, label]) => App.el("option", {
         value, text: label, selected: value === rule,
       })));
     const attendees = App.el("input", {
-      class: "in", placeholder: App.state.meerail ? "Invite — starts typing from your mail" : "Invite — email addresses",
+      class: "in", placeholder: App.state.meerail ? "Invite: starts typing from your mail" : "Invite: email addresses",
       value: (detail && detail.attendees || []).map((a) => a.email).join(", "),
     });
     const people = App.el("div", { class: "people" });
@@ -208,7 +208,7 @@ App.editor = (() => {
 
     const error = App.el("div", { class: "modal-error", hidden: true });
     const note = App.el("div", { class: "modal-note" });
-    if (detail && detail.rrule) note.textContent = "This repeats — a change here changes every occurrence.";
+    if (detail && detail.rrule) note.textContent = "This repeats: a change here changes every occurrence.";
     if (readOnly) note.textContent = "This calendar is read-only.";
 
     const save = App.el("button", { class: "btn primary", text: event ? "Save" : "Create", disabled: readOnly });
@@ -221,7 +221,7 @@ App.editor = (() => {
       const body = {
         calendar_id: Number(calSelect.value),
         title: title.value.trim() || "(no title)",
-        // All-day sends dates, with DTEND the day after the last one — the
+        // All-day sends dates, with DTEND the day after the last one. The
         // panel shows the last day, because that is what "until" means.
         start: when.allDay ? when.startDate : `${when.startDate}T${when.startTime}`,
         end: when.allDay ? nextDay(when.endDate) : `${when.endDate}T${when.endTime}`,
@@ -254,6 +254,13 @@ App.editor = (() => {
       };
     }
 
+    const reminderSlot = App.el("div", { class: "rem-slot" });
+    if (event && App.reminders) {
+      App.reminders.section(event.event_id)
+        .then((node) => { if (node) reminderSlot.replaceChildren(node); })
+        .catch(() => {});
+    }
+
     const cal = event && App.state.calendar(event.cal);
     return App.el("div", { class: "modal-card", onclick: (e) => e.stopPropagation() },
       App.el("div", { class: "modal-head" },
@@ -280,6 +287,10 @@ App.editor = (() => {
         field("Invite", attendees, App.state.meerail ? "from the people you write to in meerail" : ""),
         people,
         field("Notes", description),
+        // Built after the card is on screen: it needs a round trip to resolve
+        // what the rules currently say about this event, and the panel must
+        // not wait on that before drawing the parts it already knows.
+        reminderSlot,
         note.textContent ? note : null,
         error,
       ),
@@ -307,7 +318,7 @@ App.editor = (() => {
     mount(build(Object.assign({}, event, detail || {}), detail));
   }
 
-  /* `at` is where the click landed — double-clicking 14:00 on a Tuesday should
+  /* `at` is where the click landed: double-clicking 14:00 on a Tuesday should
      not then ask what time was meant. Passed into the panel rather than poked
      into it afterwards, so the pills are right on first paint. */
   function create(at) {

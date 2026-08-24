@@ -1,7 +1,7 @@
 """The configuration loader: the file, the environment, and what wins.
 
 Worth its own tests because it is the one piece both processes depend on and
-the one where a mistake is silent — a mistyped key that is quietly ignored is
+the one where a mistake is silent: a mistyped key that is quietly ignored is
 how a calendar ends up not syncing with nothing in the log to say why.
 """
 
@@ -20,7 +20,7 @@ def toml(tmp_path, monkeypatch):
     """Write a config file and point the loader at it.
 
     The environment is cleared of the settings these tests are about, because
-    it *beats* the file — conftest exports DATABASE_URL for the API tests, and
+    it *beats* the file: conftest exports DATABASE_URL for the API tests, and
     a file test that silently read that instead would be testing nothing.
     """
     for name in ("DATABASE_URL", "SERVER_PASSWORD", "SECRET_KEY", "TIMEZONE"):

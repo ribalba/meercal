@@ -2,7 +2,7 @@
 
 Everything that knows about RFC 5545 lives here, so that the rest of the
 program deals in datetimes and strings. The agent parses what a server sends;
-the server parses what a user pastes or a mail carries — same code, because an
+the server parses what a user pastes or a mail carries. Same code, because an
 invitation in an email and an event on a CalDAV server are the same object.
 """
 
@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from icalendar import Calendar as ICalendar
+from icalendar.prop import vDuration
 
 from ..timeutil import UTC, to_utc, zone
 
@@ -45,6 +46,7 @@ class ParsedEvent:
     organizer: str = ""
     attendees: list[dict] = field(default_factory=list)
     categories: list[str] = field(default_factory=list)
+    alarms: list[dict] = field(default_factory=list)
     sequence: int = 0
     raw_ics: str = ""
 
@@ -73,7 +75,7 @@ def _tz_name(value: Any, param_tz: str, default_tz: str) -> str:
 
     The TZID parameter is the authority when it is there. Without one the value
     is either UTC (a trailing Z, which icalendar has already resolved) or
-    *floating* — a wall time with no zone, which RFC 5545 says happens in
+    *floating*: a wall time with no zone, which RFC 5545 says happens in
     whatever zone the reader is in. Floating gets the calendar's own zone,
     because "the calendar's timezone" is the closest thing to the reader that a
     background sync has.
@@ -146,8 +148,45 @@ def _people(comp) -> tuple[str, list[dict]]:
     return organizer, attendees
 
 
+def _alarms(comp) -> list[dict]:
+    """The VEVENT's own VALARMs, as ``{trigger, related, action, description}``.
+
+    Kept because a reminder rule can defer to them (``lead = "valarm"``), which
+    is what lets meercal agree with the alarm your phone already set instead of
+    arguing with it. Two notifications for one meeting, five minutes apart, is
+    how people end up switching reminders off entirely.
+
+    The trigger is normalised back to its ISO 8601 spelling (``-PT15M``)
+    whichever way icalendar handed it over. An absolute trigger is kept too,
+    with ``related`` set to ``"ABSOLUTE"``, so that nothing is silently dropped
+    on the way in; the reminder code decides what it can use.
+    """
+    out: list[dict] = []
+    for alarm in comp.walk("VALARM"):
+        trigger = alarm.get("TRIGGER")
+        if trigger is None:
+            continue
+        value = getattr(trigger, "dt", None)
+        related = str(trigger.params.get("RELATED", "START") or "START").upper()
+        if isinstance(value, timedelta):
+            text = vDuration(value).to_ical().decode("ascii")
+        elif isinstance(value, datetime):
+            text, related = value.isoformat(), "ABSOLUTE"
+        else:
+            continue
+        out.append(
+            {
+                "trigger": text,
+                "related": related,
+                "action": _text(alarm, "ACTION").upper() or "DISPLAY",
+                "description": _text(alarm, "DESCRIPTION"),
+            }
+        )
+    return out
+
+
 def parse_event(comp, default_tz: str = "UTC") -> ParsedEvent | None:
-    """One VEVENT component. Returns None for anything without a usable start —
+    """One VEVENT component. Returns None for anything without a usable start:
     a VEVENT with no DTSTART is not an event, it is a bug on the other end."""
     from .. import expand  # local import: expand imports timeutil, not this
 
@@ -230,6 +269,7 @@ def parse_event(comp, default_tz: str = "UTC") -> ParsedEvent | None:
         organizer=organizer,
         attendees=attendees,
         categories=categories,
+        alarms=_alarms(comp),
         sequence=sequence,
         raw_ics=comp.to_ical().decode("utf-8", "replace"),
     )
@@ -238,7 +278,7 @@ def parse_event(comp, default_tz: str = "UTC") -> ParsedEvent | None:
 def parse_calendar(text: str, default_tz: str = "UTC") -> list[ParsedEvent]:
     """Every VEVENT in one iCalendar document.
 
-    A CalDAV resource usually holds one series — the master and its overrides —
+    A CalDAV resource usually holds one series (the master and its overrides)
     and an .ics subscription holds the whole calendar. Both come through here.
     """
     if not text or "BEGIN:VCALENDAR" not in text:

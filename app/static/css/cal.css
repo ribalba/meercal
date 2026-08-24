@@ -1,19 +1,25 @@
-/* meercal — the calendar half of the suite. Light + dark, following the system
+/* meercal: the calendar half of the suite. Light + dark, following the system
    unless the theme is forced.
 
    The palette is meerail's, deliberately: the two programs sit side by side on
    the same screen and a second definition of "dark" would show. What is new
-   here is only what a calendar needs — the rail, the day rows, the lanes. */
+   here is only what a calendar needs: the rail, the day rows, the lanes. */
 
 :root {
   /* Which half of every light-dark() pair below is used. `light dark` means the
-     OS decides — and it also puts scrollbars and form controls on the same side
+     OS decides, and it also puts scrollbars and form controls on the same side
      as the rest of the app, which a hand-rolled palette cannot. */
   color-scheme: light dark;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --accent: light-dark(#1d6ff2, #3b82f6);
   --accent-weak: light-dark(#e8f0fe, #1e2a44);
   --accent-soft: light-dark(#6ba4f8, #7cb0fb);
+  /* Today's band. Deliberately not the accent tint: every chip is filled with
+     its calendar's colour at 14-25% alpha, so a blue day behind a blue chip
+     erases it. A neutral wash plus an edge says "today" without competing with
+     anything drawn on top of it. */
+  --today-tint: light-dark(#f4f4f6, #232326);
+  --today-line: light-dark(#9cc2f8, #46688f);
   --bg: light-dark(#ffffff, #1c1c1e);
   --bg-elev: light-dark(#f5f5f7, #2c2c2e);
   --sidebar: light-dark(#e8e8ea, #232325);
@@ -36,7 +42,7 @@
      weekend is still part of the week, and a panel edge through the middle of
      a month grid reads as a break in the data. */
   --weekend: light-dark(rgba(0,0,0,.025), rgba(255,255,255,.028));
-  /* The span rail. One lane is deliberately narrow — the bars are the shape of
+  /* The span rail. One lane is deliberately narrow: the bars are the shape of
      the thing, and their titles run down them. */
   --lane-w: 24px;
   --gutter-w: 64px;
@@ -47,7 +53,7 @@
 
 * { box-sizing: border-box; }
 /* `hidden` outranks the layout rules below. Without this, any element given
-   `display: grid` or `flex` — the login overlay, the search panel — ignores
+   `display: grid` or `flex` (the login overlay, the search panel) ignores
    the attribute entirely, which is a whole class of "why is that on screen". */
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; font-family: var(--font); color: var(--text);
@@ -87,7 +93,7 @@ button { font-family: inherit; color: inherit; }
 #btn-refresh.spin svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* The Create button. Big, first, and the only filled thing in the sidebar —
+/* The Create button. Big, first, and the only filled thing in the sidebar:
    with twenty calendars under it, the action has to win on shape rather than
    on position alone. */
 .create-btn { display: flex; align-items: center; gap: .5rem; margin: 0 .75rem .7rem;
@@ -111,8 +117,8 @@ button { font-family: inherit; color: inherit; }
   border-radius: 6px; cursor: pointer; font-size: .86rem; user-select: none; }
 .cal-row:hover { background: var(--hover-tint); }
 .cal-row.off { color: var(--text-faint); }
-/* The dot is the calendar's colour everywhere in the app — sidebar, chip,
-   bar, modal — so that a colour is only ever learned once. Hidden calendars
+/* The dot is the calendar's colour everywhere in the app (sidebar, chip,
+   bar, modal) so that a colour is only ever learned once. Hidden calendars
    keep the hue and lose the fill: still identifiable, plainly switched off. */
 .cal-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c);
   flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
@@ -145,7 +151,7 @@ button { font-family: inherit; color: inherit; }
 
 .shortcut-box { border-top: 1px solid var(--border); padding: .5rem .9rem .7rem;
   font-size: .74rem; color: var(--text-muted); max-height: 34vh; overflow-y: auto; }
-/* Collapsed, the box shows the first nine bindings — everything you reach for
+/* Collapsed, the box shows the first nine bindings: everything you reach for
    without thinking. `?` or the "n more" button below opens the rest. The count
    is +11 because the title is a child too. */
 .shortcut-box:not(.open) .shortcut-row:nth-child(n+11) { display: none; }
@@ -242,7 +248,7 @@ button { font-family: inherit; color: inherit; }
 .rb-day { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .25rem;
   padding: .4rem .8rem .4rem .6rem; min-height: 2.3rem; position: relative;
   border-bottom: 1px solid var(--border); }
-.rb-day.today { background: var(--accent-weak); }
+.rb-day.today { background: var(--today-tint); box-shadow: inset 0 0 0 1px var(--today-line); }
 .rb-empty { min-height: 1rem; }
 
 /* A day's events, as pills. Dense on purpose: a fortnight of twenty calendars
@@ -263,7 +269,7 @@ button { font-family: inherit; color: inherit; }
 .chip-mark { color: var(--text-faint); font-size: .68rem; }
 .chip.all-day { background: var(--c); color: #fff; border-left-color: var(--c); }
 .chip.all-day .chip-time, .chip.all-day .chip-where, .chip.all-day .chip-mark { color: rgba(255,255,255,.8); }
-/* TRANSP — a note in the time rather than a claim on it. Hatched so that the
+/* TRANSP: a note in the time rather than a claim on it. Hatched so that the
    distinction survives being three pixels tall in a dense week. */
 .chip.free { background: repeating-linear-gradient(135deg, var(--c-weak) 0 6px, transparent 6px 12px); }
 .chip.clash { box-shadow: 0 0 0 1px var(--danger) inset; }
@@ -283,7 +289,7 @@ button { font-family: inherit; color: inherit; }
 
 /* --- The rail --- */
 /* A long event is one bar, however many weeks it covers, because time did not
-   wrap — the view did not either. The title runs down it, and stays on screen
+   wrap, and the view did not either. The title runs down it, and stays on screen
    while the bar does: `sticky` is what turns a colour into "you are on day 4
    of 19". */
 .span { position: relative; margin: 1px 3px 1px 1px; border-radius: 7px;
@@ -325,7 +331,7 @@ button { font-family: inherit; color: inherit; }
 .wk-daylabel.today .wk-dow { color: var(--accent); }
 
 /* The all-day strip. Bars run across the columns without breaking, and an
-   arrow says the thing continues past the edge of the week — which is the one
+   arrow says the thing continues past the edge of the week, which is the one
    fact the usual all-day row leaves out. */
 .wk-strip { display: grid; grid-template-columns: var(--gutter-w) 1fr; align-items: start;
   border-top: 1px solid var(--border); min-height: 1.8rem; }
@@ -352,7 +358,10 @@ button { font-family: inherit; color: inherit; }
   color: var(--text-faint); background: var(--bg); padding: 0 .2rem;
   font-variant-numeric: tabular-nums; }
 .wk-col { position: relative; border-left: 1px solid var(--border); }
-.wk-col.today { background: var(--accent-weak); }
+/* Edges rather than a box: the column runs the whole day, so a top and a
+   bottom rule would land wherever the scroll happens to be. */
+.wk-col.today { background: var(--today-tint);
+  box-shadow: inset 1px 0 0 var(--today-line), inset -1px 0 0 var(--today-line); }
 .wk-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
 .wk-event { position: absolute; border: 0; border-left: 3px solid var(--c); background: var(--c-weak);
   border-radius: 5px; padding: .1rem .3rem; font-size: .74rem; text-align: left; cursor: pointer;
@@ -382,7 +391,7 @@ button { font-family: inherit; color: inherit; }
 .mo-grid { flex: 1; display: grid; grid-template-rows: repeat(var(--weeks, 6), minmax(0, 1fr));
   min-height: 0; }
 /* Clipped to its row. Both layers inside are grid items, and a grid item's
-   automatic minimum size is its content — so without this a week with more in
+   automatic minimum size is its content, so without this a week with more in
    it than fits simply grows and pushes the rest of the month down. */
 .mo-week { position: relative; display: grid; min-height: 0; overflow: hidden; }
 .mo-cells { display: grid; grid-template-columns: repeat(7, 1fr); grid-area: 1 / 1;
@@ -392,7 +401,7 @@ button { font-family: inherit; color: inherit; }
 .mo-cell.other { background: var(--bg-elev); color: var(--text-faint); }
 .mo-cell.today .mo-dnum span:first-child { background: var(--accent); color: #fff;
   border-radius: 50%; width: 1.4rem; height: 1.4rem; display: inline-grid; place-items: center; }
-/* The gap under the date is the band the week's bars are drawn in — see
+/* The gap under the date is the band the week's bars are drawn in; see
    app.month.js. It is zero in a week with no long events, so an ordinary week
    loses nothing to it. */
 .mo-dnum { display: flex; align-items: center; justify-content: space-between;
@@ -447,6 +456,47 @@ button { font-family: inherit; color: inherit; }
 .modal-note { font-size: .78rem; color: var(--text-muted); background: var(--bg-elev);
   border-radius: 6px; padding: .4rem .5rem; }
 
+/* --- reminders, in the event panel ---------------------------------------
+   Three states per channel, and `auto` is not the same as `on`: a mute has to
+   survive a rule you write next month, so the switch has to be able to say
+   which of the two it means. The dot carries what actually happens; the
+   toggle carries what you have said about it. */
+.rem-slot:empty { display: none; }
+.rem-block { gap: .35rem; }
+.rem-block .fld-label { display: flex; align-items: center; gap: .35rem; }
+.rem-block .fld-label svg { opacity: .75; }
+.rem-status { margin-left: auto; text-transform: none; letter-spacing: 0;
+  color: var(--text-faint); font-size: .68rem; }
+
+.rem-scope { display: flex; gap: .25rem; margin-bottom: .1rem; }
+.rem-scope-btn { border: 1px solid var(--border-strong); background: var(--bg);
+  color: var(--text-muted); border-radius: 6px; padding: .15rem .45rem;
+  font: inherit; font-size: .72rem; cursor: pointer; }
+.rem-scope-btn.on { background: var(--accent-weak); border-color: var(--accent-soft);
+  color: var(--text); }
+
+.rem-rows { display: flex; flex-direction: column; gap: .1rem; }
+.rem-row { display: flex; align-items: center; gap: .45rem; padding: .22rem .4rem;
+  border-radius: 6px; font-size: .82rem; }
+.rem-row:hover { background: var(--hover-tint-soft); }
+.rem-dot { width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--accent); }
+.rem-row.off .rem-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-faint); }
+.rem-name { font-weight: 550; }
+.rem-row.off .rem-name { color: var(--text-muted); }
+.rem-why { color: var(--text-faint); font-size: .74rem; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.rem-toggle { border: 1px solid var(--border-strong); background: var(--bg);
+  color: var(--text-muted); border-radius: 6px; padding: .1rem .4rem;
+  font: inherit; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
+  cursor: pointer; flex: none; min-width: 3.1rem; }
+.rem-toggle:hover { background: var(--hover-tint); }
+.rem-toggle.st-on { background: var(--accent-weak); border-color: var(--accent-soft);
+  color: var(--text); }
+.rem-toggle.st-off { background: var(--bg-elev); border-color: var(--danger); color: var(--danger); }
+.rem-note { font-size: .72rem; color: var(--text-faint); padding: .1rem .4rem; }
+
 .fld { display: flex; flex-direction: column; gap: .2rem; flex: 1; min-width: 0; }
 .fld.inline { flex-direction: row; align-items: center; gap: .4rem; font-size: .85rem; }
 .fld-row { display: flex; gap: .6rem; }
@@ -498,7 +548,7 @@ textarea.in { resize: vertical; }
 
 /* The number keys, as a row of them. A key that another set already answers to
    says whose it is, because taking it is allowed and silently stealing it is
-   not — see PATCH /api/sets. */
+   not; see PATCH /api/sets. */
 .key-row { display: flex; flex-wrap: wrap; gap: .3rem; }
 .key-btn { display: flex; flex-direction: column; align-items: center; gap: .1rem;
   min-width: 2.2rem; padding: .25rem .35rem; border: 1px solid var(--border-strong);
@@ -648,8 +698,31 @@ textarea.in { resize: vertical; }
 .pop-dur { color: var(--text-muted); font-size: .74rem; }
 
 
+/* =========================================================================
+   "An update is out"
+   ========================================================================= */
+
+/* A strip, not a modal. In the accent colour rather than a warning colour: a
+   newer release is news, not a fault. */
+.update-notice { display: flex; align-items: center; gap: .25rem;
+  margin: .1rem .75rem .6rem; padding: .3rem .35rem .3rem .5rem;
+  border-radius: 6px; font-size: .76rem; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
+.update-notice .un-text { display: flex; align-items: center; gap: .4rem;
+  min-width: 0; flex: 1 1 auto; color: inherit; text-decoration: none; }
+.update-notice .un-text:hover { text-decoration: underline; }
+.update-notice .un-icon { flex: 0 0 auto; display: flex; }
+.update-notice .un-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-notice .un-close { flex: 0 0 auto; display: flex; align-items: center;
+  padding: .15rem; border: 0; background: none; cursor: pointer; color: inherit;
+  opacity: .6; border-radius: 4px; }
+.update-notice .un-close:hover { opacity: 1;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+
 /* NOTE ON ORDER: this block is last in the file on purpose. It overrides the
-   sections above it, and CSS resolves ties by document order — while it sat in
+   sections above it, and CSS resolves ties by document order. While it sat in
    the middle, every rule added below it (the year view, the pickers) quietly
    won against its narrow counterpart, and the year came out one month per row
    on a phone with the media query looking perfectly correct. Keep new sections
@@ -657,13 +730,13 @@ textarea.in { resize: vertical; }
 */
 
 /* =========================================================================
-   Narrow — phones, and a window shared with something else
+   Narrow: phones, and a window shared with something else
    =========================================================================
 
    The sidebar becomes a drawer rather than disappearing: hiding it took the
    calendars, the sets and Create with it, which is most of the app. The
    toolbar wraps instead of overflowing, because what fell off the end of it
-   was the view switch — the control you need *most* on a small screen, where
+   was the view switch, the control you need *most* on a small screen, where
    less of the calendar fits at once. */
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
@@ -685,7 +758,7 @@ textarea.in { resize: vertical; }
   .view-title { font-size: .95rem; margin: 0 .2rem; flex: 1; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hidden-note { order: 5; }
-  /* Full width on its own line, and scrollable if even that is not enough —
+  /* Full width on its own line, and scrollable if even that is not enough:
      five views on a 320px screen do not fit any other way. */
   .view-switch { order: 6; width: 100%; overflow-x: auto; scrollbar-width: none; }
   .view-switch::-webkit-scrollbar { display: none; }
@@ -711,7 +784,7 @@ textarea.in { resize: vertical; }
   .rb-day { padding: .4rem .5rem .4rem .45rem; }
 
   /* A week of seven columns does not fit a phone, so it scrolls sideways with
-     the header and the strip kept in step above it — better than squeezing
+     the header and the strip kept in step above it: better than squeezing
      seven columns into 44px each, where the titles say nothing. */
   .week .wk-fixed, .week .wk-scroll { overflow-x: auto; }
   .wk-head, .wk-strip, .wk-body { min-width: 680px; }

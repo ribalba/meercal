@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>meercal — a calendar for people who have too many calendars</title>
+  <title>meercal: a calendar for people who have too many calendars</title>
   <meta name="description" content="meercal is a self-hosted calendar client for technologists. The Ribbon view draws time as one continuous strip, so a three-week event is one bar instead of three. Apple Calendar, CalDAV and Google, many calendars at once, everything in PostgreSQL." />
   <meta name="theme-color" content="#1d6ff2" />
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png" />
@@ -46,7 +46,7 @@
         <h1 class="landing-title">A calendar for people who have too&nbsp;many&nbsp;calendars.</h1>
         <p class="landing-subtitle">
           Work, family, the school, the on-call rota, two clients and a
-          conference feed — and a month grid that chops every long thing into
+          conference feed, and a month grid that chops every long thing into
           weekly fragments. meercal draws time as one continuous strip instead,
           so a three-week trip is one bar you can follow, and twenty calendars
           fit on one screen without any of them being drawn twice. Self-hosted,
@@ -64,8 +64,8 @@
       <h2 class="landing-section-title">Long events, drawn as long events</h2>
       <p class="landing-section-lede">
         Every calendar app wraps time every seven days. It is why the thing you
-        are actually in the middle of — the trip, the freeze, the fortnight the
-        Kita is shut — is the hardest thing on the screen to see.
+        are actually in the middle of (the trip, the freeze, the fortnight the
+        Kita is shut) is the hardest thing on the screen to see.
       </p>
 
       <div class="landing-grid">
@@ -104,23 +104,95 @@
               Runs of days with nothing on them collapse to a single
               <em>“8 quiet days”</em> line, so a whole month of several calendars
               fits on a screen. Week boundaries keep their rule and their ISO
-              week number — losing the rhythm of the week was the one thing a
+              week number. Losing the rhythm of the week was the one thing a
               continuous view could not afford.
             </p>
           </div>
         </article>
       </div>
 
-      <figure class="landing-shot landing-shot-wide">
-        <button type="button" class="landing-shot-btn"
-                data-full="/img/screenshots/spans.png"
-                data-caption="&lt;strong&gt;is:span&lt;/strong&gt; — the Ribbon with everything but the long events filtered away. Five overlapping stretches in five lanes: a release freeze, a visit, two weeks of closed Kita, an on-call week and a nineteen-day trip. Hatched bars are the ones that do not block the time.">
-          <img src="/img/screenshots/spans.png" width="2880" height="1800" loading="lazy" decoding="async"
-               alt="The meercal Ribbon filtered to is:span, showing five multi-week events as continuous vertical bars in parallel lanes beside a column of days." />
-          <span class="landing-shot-zoom"><i class="expand icon"></i></span>
-        </button>
-        <figcaption>Five overlapping long events, each in one piece</figcaption>
-      </figure>
+      <!-- The tour. One wide shot at a time; the controls are built by the
+           script, so with JS off this degrades to the first screenshot. -->
+      <div class="landing-slider" data-slider aria-roledescription="carousel"
+           aria-label="meercal screenshots">
+        <div class="landing-slider-viewport">
+          <ul class="landing-slider-track" data-slider-track>
+
+            <li class="landing-slide" data-label="The Ribbon"
+                data-note="Days run down the page without wrapping. Long events are unbroken bars in the rail beside them; quiet days collapse to one line.">
+              <button type="button" class="landing-shot-btn"
+                      data-full="/img/screenshots/ribbon.png"
+                      data-full-dark="/img/screenshots/ribbon-dark.png"
+                      data-caption="&lt;strong&gt;The Ribbon.&lt;/strong&gt; Days run down the page without wrapping; long events are unbroken bars in the rail on the left, each labelled with where you are inside it. Quiet days collapse to one line, week rules carry the ISO week number, and today's clock sits in the margin.">
+                <picture>
+                  <source srcset="/img/screenshots/ribbon-dark.png" media="(prefers-color-scheme: dark)" />
+                  <img src="/img/screenshots/ribbon.png" width="2880" height="1800" decoding="async"
+                       alt="The meercal Ribbon view: a sidebar of seven calendars and three sets, a rail of continuous coloured bars for multi-week events, and a column of day rows with event pills." />
+                </picture>
+                <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+              </button>
+            </li>
+
+            <li class="landing-slide" data-label="Week"
+                data-note="The familiar time grid, with the long events in a strip above it that caps with an arrow where they continue.">
+              <button type="button" class="landing-shot-btn"
+                      data-full="/img/screenshots/week.png"
+                      data-caption="&lt;strong&gt;Week.&lt;/strong&gt; The familiar time grid, with the long events in a strip above it that runs across the whole week and caps with an arrow where it continues, so a fortnight-long trip is not re-stated as two unrelated bars.">
+                <img src="/img/screenshots/week.png" width="2880" height="1800" loading="lazy" decoding="async"
+                     alt="The meercal week view: seven day columns with hour lines, meetings placed by time, a red now-line, and multi-day bars in an all-day strip above." />
+                <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+              </button>
+            </li>
+
+            <li class="landing-slide" data-label="Month"
+                data-note="Lanes are assigned across the whole month rather than per week, so a bar keeps its line when the grid wraps.">
+              <button type="button" class="landing-shot-btn"
+                      data-full="/img/screenshots/month.png"
+                      data-caption="&lt;strong&gt;Month.&lt;/strong&gt; Lanes are assigned across the whole month rather than per week, so a bar keeps its line when the grid wraps, and each week reserves exactly the room its bars need before the day's own events start.">
+                <img src="/img/screenshots/month.png" width="2880" height="1800" loading="lazy" decoding="async"
+                     alt="The meercal month view: a six-week grid with continuous coloured bars spanning several days and event chips under them." />
+                <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+              </button>
+            </li>
+
+            <li class="landing-slide" data-label="Year"
+                data-note="Every long event of the year on one axis, above the twelve months: when am I away, when is the school shut.">
+              <button type="button" class="landing-shot-btn"
+                      data-full="/img/screenshots/year.png"
+                      data-caption="&lt;strong&gt;Year.&lt;/strong&gt; Twelve months is the easy half. The band above them is the useful half: every long event of the year on one axis, which is the question you actually have at this zoom: when am I away, when is the school shut, which month has nothing in it.">
+                <img src="/img/screenshots/year.png" width="2880" height="1800" loading="lazy" decoding="async"
+                     alt="The meercal year view: a band of horizontal bars for the year's long events above twelve mini-month grids with tinted days." />
+                <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+              </button>
+            </li>
+
+            <li class="landing-slide" data-label="Sets"
+                data-note="A set is a name, a number key and a list of calendars. Press the key anywhere in the app to switch which calendars are drawn.">
+              <button type="button" class="landing-shot-btn"
+                      data-full="/img/screenshots/sets.png"
+                      data-caption="&lt;strong&gt;A set, being edited.&lt;/strong&gt; A name and a number key. The key says which set currently answers to it, because taking one is allowed and taking it silently is not.">
+                <img src="/img/screenshots/sets.png" width="2880" height="1800" loading="lazy" decoding="async"
+                     alt="The meercal set editor: a name field, a row of number keys with 0 selected, and a checklist of the seven calendars." />
+                <span class="landing-shot-zoom"><i class="expand icon"></i></span>
+              </button>
+            </li>
+
+          </ul>
+          <button type="button" class="landing-slider-arrow landing-slider-prev"
+                  data-slider-prev aria-label="Previous screenshot">
+            <i class="chevron left icon"></i>
+          </button>
+          <button type="button" class="landing-slider-arrow landing-slider-next"
+                  data-slider-next aria-label="Next screenshot">
+            <i class="chevron right icon"></i>
+          </button>
+        </div>
+        <p class="landing-slider-note" data-slider-note>
+          Days run down the page without wrapping. Long events are unbroken bars
+          in the rail beside them; quiet days collapse to one line.
+        </p>
+        <div class="landing-slider-tabs" data-slider-tabs role="group" aria-label="Choose a screenshot"></div>
+      </div>
     </section>
 
     <!-- Main features -->
@@ -138,7 +210,7 @@
             <h3>Sets, and solo</h3>
             <p>
               You do not think in calendars, you think in situations. Group them
-              into <strong>sets</strong> — Work, Family, the release — and switch
+              into <strong>sets</strong> (Work, Family, the release) and switch
               with a number key; <kbd>0</kbd> always means everything. A set is
               something you keep, so it is something you can change: rename it,
               move its key, add the calendar you only started using last week.
@@ -154,8 +226,8 @@
             <div class="landing-card-icon"><i class="apple icon"></i></div>
             <h3>Apple Calendar, CalDAV, Google</h3>
             <p>
-              iCloud with an app-specific password — the family calendar
-              included — plus Nextcloud, Fastmail, Radicale, SOGo or anything
+              iCloud with an app-specific password (the family calendar
+              included), plus Nextcloud, Fastmail, Radicale, SOGo or anything
               else that speaks CalDAV. Google over OAuth, and any secret
               <code>.ics</code> address as a read-only feed. Sync tokens mean a
               quiet calendar costs one request per pass.
@@ -177,9 +249,25 @@
             </p>
           </div>
         </article>
-      </div>
+        <article class="landing-card">
+          <div class="landing-card-body">
+            <div class="landing-card-icon"><i class="bell icon"></i></div>
+            <h3>Reminders, and the lunch problem</h3>
+            <p>
+              A reminder can land on your <strong>desktop</strong>, on your phone
+              as a push, or on your actual phone as a <strong>call</strong>, and
+              a rule is a filter string with a lead time, not a second query
+              language: <code>cal:work is:busy</code>, an hour before and ten
+              minutes before. Since a rule is a statement about a <em>kind</em>
+              of event, the event has the last word: the bell in the panel sets
+              each channel to auto, on or <strong>off</strong>, and off beats
+              everything, so “never call me about lunch” is one bit that stays
+              true against rules you have not written yet. It runs in the agent,
+              where the credentials already are.
+            </p>
+          </div>
+        </article>
 
-      <div class="landing-grid" style="margin-top:1.5rem">
         <article class="landing-card">
           <div class="landing-card-body">
             <div class="landing-card-icon"><i class="search icon"></i></div>
@@ -191,7 +279,7 @@
               <code>is:span</code>, <code>is:recurring</code>,
               <code>is:free</code>. Turn on Regex and the pattern goes to
               Postgres as a POSIX regular expression over an indexed column.
-              Enter searches every calendar — including the ones you have hidden.
+              Enter searches every calendar, including the ones you have hidden.
             </p>
           </div>
         </article>
@@ -201,7 +289,7 @@
             <div class="landing-card-icon"><i class="map marker alternate icon"></i></div>
             <h3>Places you keep typing</h3>
             <p>
-              Half the locations in a calendar are the same handful — the
+              Half the locations in a calendar are the same handful: the
               office, that room, the same meeting link. Put them in
               <code>meercal.toml</code> as name-and-value pairs and they are
               offered as chips under the event panel's <em>Where</em> field, in
@@ -217,7 +305,7 @@
             <p>
               Two meetings overlapping on one calendar is usually deliberate. The
               same across two calendars is the double booking you meant to
-              notice — so meercal marks it, on the event and in the margin of the
+              notice, so meercal marks it, on the event and in the margin of the
               day, rather than leaving you to spot it.
             </p>
           </div>
@@ -229,15 +317,12 @@
             <h3>Everything in PostgreSQL</h3>
             <p>
               Events are stored as the server sent them, and recurrence is
-              expanded into rows over a rolling horizon — so drawing a fortnight
+              expanded into rows over a rolling horizon, so drawing a fortnight
               is one index scan whatever the number of calendars, and years of
               your time are a table you can point <code>psql</code> at.
             </p>
           </div>
         </article>
-      </div>
-
-      <div class="landing-grid" style="margin-top:1.5rem">
         <article class="landing-card">
           <div class="landing-card-body">
             <div class="landing-card-icon"><i class="keyboard icon"></i></div>
@@ -262,7 +347,7 @@
               Point meercal at a
               <a href="https://meerail.com" target="_blank" rel="noopener">meerail</a>
               database and the attendee field autocompletes from the people you
-              actually correspond with — meerail's address book is built from
+              actually correspond with: meerail's address book is built from
               every message you have, ranked by how often. Read-only: meercal
               never writes to your mail.
             </p>
@@ -279,9 +364,24 @@
               things up: bars run continuously across the week, and a bar that
               continues past the edge says so. The <strong>year</strong> opens
               with every long event of the year laid across one twelve-month
-              axis. The wheel pages between them — in the week and day grids it
+              axis. The wheel pages between them: in the week and day grids it
               scrolls the hours first and pages when it runs out. Light and
               dark, following the system or pinned.
+            </p>
+          </div>
+        </article>
+        <article class="landing-card">
+          <div class="landing-card-body">
+            <div class="landing-card-icon"><i class="mobile alternate icon"></i></div>
+            <h3>On a phone</h3>
+            <p>
+              The same app, laid out for the width: the sidebar becomes a drawer
+              behind the ☰, the view switch gets a row of its own rather than
+              falling off the end of the toolbar, and Create is a floating
+              button. The Ribbon is the view that gains most from a narrow
+              screen (it is a single column by nature), and the week grid
+              scrolls sideways instead of squeezing seven columns into forty
+              pixels each.
             </p>
           </div>
         </article>
@@ -314,7 +414,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/week.png"
-                  data-caption="&lt;strong&gt;Week.&lt;/strong&gt; The familiar time grid, with the long events in a strip above it that runs across the whole week and caps with an arrow where it continues — so a fortnight-long trip is not re-stated as two unrelated bars.">
+                  data-caption="&lt;strong&gt;Week.&lt;/strong&gt; The familiar time grid, with the long events in a strip above it that runs across the whole week and caps with an arrow where it continues, so a fortnight-long trip is not re-stated as two unrelated bars.">
             <img src="/img/screenshots/week.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The meercal week view: seven day columns with hour lines, meetings placed by time, a red now-line, and multi-day bars in an all-day strip above." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -325,7 +425,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/month.png"
-                  data-caption="&lt;strong&gt;Month.&lt;/strong&gt; Lanes are assigned across the whole month rather than per week, so a bar keeps its line when the grid wraps — and each week reserves exactly the room its bars need before the day's own events start.">
+                  data-caption="&lt;strong&gt;Month.&lt;/strong&gt; Lanes are assigned across the whole month rather than per week, so a bar keeps its line when the grid wraps, and each week reserves exactly the room its bars need before the day's own events start.">
             <img src="/img/screenshots/month.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The meercal month view: a six-week grid with continuous coloured bars spanning several days and event chips under them." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -336,7 +436,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/year.png"
-                  data-caption="&lt;strong&gt;Year.&lt;/strong&gt; Twelve months is the easy half. The band above them is the useful half: every long event of the year on one axis, which is the question you actually have at this zoom — when am I away, when is the school shut, which month has nothing in it.">
+                  data-caption="&lt;strong&gt;Year.&lt;/strong&gt; Twelve months is the easy half. The band above them is the useful half: every long event of the year on one axis, which is the question you actually have at this zoom: when am I away, when is the school shut, which month has nothing in it.">
             <img src="/img/screenshots/year.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The meercal year view: a band of horizontal bars for the year's long events above twelve mini-month grids with tinted days." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -347,7 +447,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/sets.png"
-                  data-caption="&lt;strong&gt;A set, being edited.&lt;/strong&gt; A name, a number key — and the key says which set currently answers to it, because taking one is allowed and taking it silently is not.">
+                  data-caption="&lt;strong&gt;A set, being edited.&lt;/strong&gt; A name and a number key. The key says which set currently answers to it, because taking one is allowed and taking it silently is not.">
             <img src="/img/screenshots/sets.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The meercal set editor: a name field, a row of number keys with 0 selected, and a checklist of the seven calendars." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -358,7 +458,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/spans.png"
-                  data-caption="&lt;strong&gt;is:span&lt;/strong&gt; — everything but the long events filtered away. The filter narrows the view you are already in rather than taking you to a list.">
+                  data-caption="&lt;strong&gt;is:span&lt;/strong&gt;: everything but the long events filtered away. The filter narrows the view you are already in rather than taking you to a list.">
             <img src="/img/screenshots/spans.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The Ribbon filtered with is:span, showing only the multi-week bars." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -369,7 +469,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/search.png"
-                  data-caption="&lt;strong&gt;Search across every calendar.&lt;/strong&gt; Hiding a calendar is about the drawing, not about the data — so search covers the hidden ones too, and says which calendar each hit came from. Upcoming first, because a calendar search is nearly always about something ahead.">
+                  data-caption="&lt;strong&gt;Search across every calendar.&lt;/strong&gt; Hiding a calendar is about the drawing, not about the data, so search covers the hidden ones too, and says which calendar each hit came from. Upcoming first, because a calendar search is nearly always about something ahead.">
             <img src="/img/screenshots/search.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The meercal search panel listing matching events with their date, title and calendar." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -380,7 +480,7 @@
         <figure class="landing-shot">
           <button type="button" class="landing-shot-btn"
                   data-full="/img/screenshots/event.png"
-                  data-caption="&lt;strong&gt;The event panel.&lt;/strong&gt; It says out loud what it is doing: a change to a repeating event changes every occurrence, and a change to a remote calendar is queued for the agent rather than sent by the web layer — which holds no credentials.">
+                  data-caption="&lt;strong&gt;The event panel.&lt;/strong&gt; It says out loud what it is doing: a change to a repeating event changes every occurrence, and a change to a remote calendar is queued for the agent rather than sent by the web layer, which holds no credentials.">
             <img src="/img/screenshots/event.png" width="2880" height="1800" loading="lazy" decoding="async"
                  alt="The meercal event panel: title, calendar, repeat rule, start and end, location, invitees and notes." />
             <span class="landing-shot-zoom"><i class="expand icon"></i></span>
@@ -395,7 +495,7 @@
       <h2 class="landing-section-title">Get started</h2>
       <p class="landing-section-lede">
         One script, three containers, and your calendars. You need
-        <strong>Docker</strong> with the Compose plugin — nothing else, on any
+        <strong>Docker</strong> with the Compose plugin, nothing else, on any
         operating system.
       </p>
 
@@ -409,7 +509,7 @@
                 <p>
                   It checks Docker, asks where your calendars live, picks a free
                   port and pulls the published images. No clone, no build, no
-                  Python — everything it writes lands in <code>~/.meercal</code>,
+                  Python. Everything it writes lands in <code>~/.meercal</code>,
                   and your events live in a Docker volume.
                 </p>
               </div>
@@ -442,7 +542,7 @@ bash meercal.sh logs agent</pre>
             <div class="landing-card-icon"><i class="shield alternate icon"></i></div>
             <h3>3. That is it</h3>
             <p>
-              The agent is a container here too — it talks to CalDAV servers out
+              The agent is a container here too: it talks to CalDAV servers out
               on the internet, so there is nothing on your machine it needs to
               reach. Your passwords stay in <code>~/.meercal/meercal.toml</code>,
               mode 0600, mounted read-only into the two containers that read it,
@@ -453,38 +553,29 @@ bash meercal.sh update
 bash meercal.sh backup</pre>
           </div>
         </article>
-      </div>
-
-      <div class="landing-grid" style="margin-top:1.5rem">
-        <article class="landing-card landing-card-wide">
+        <article class="landing-card">
           <div class="landing-card-body">
-            <div class="landing-card-wide-inner">
-              <div class="landing-card-wide-copy">
-                <div class="landing-card-icon"><i class="desktop icon"></i></div>
-                <h3>Or run it as a desktop app</h3>
-                <p>
-                  The same Electron shell meerail and meerato have. It adds the
-                  two things a browser tab cannot: it tells the page when the
-                  window is <strong>behind another one</strong> — not hidden,
-                  just not the app you are in — so meercal stands its polling
-                  down and reloads when you come back, and it
-                  <strong>spell checks</strong> the event panel.
-                </p>
-              </div>
-              <div class="landing-card-wide-aside">
-                <pre class="landing-code">make desktop            # run it
+            <div class="landing-card-icon"><i class="desktop icon"></i></div>
+            <h3>Or run it as a desktop app</h3>
+            <p>
+              The same Electron shell meerail and meerato have. It adds the two
+              things a browser tab cannot: it tells the page when the window is
+              <strong>behind another one</strong> (not hidden, just not the app
+              you are in), so meercal stands its polling down and reloads when
+              you come back, and it <strong>spell checks</strong> the event
+              panel.
+            </p>
+            <pre class="landing-code">make desktop
 cd electron
-make distinstall        # and put it in your app menu</pre>
-              </div>
-            </div>
+make distinstall</pre>
           </div>
         </article>
       </div>
 
       <p class="landing-section-lede" style="margin-top:2rem">
         No calendars to hand? <code>bash meercal.sh demo</code> fills it with a
-        week worth looking at — seven calendars, a nineteen-day trip, an on-call
-        rota and a double booking — so you can see the Ribbon before you hand
+        week worth looking at (seven calendars, a nineteen-day trip, an on-call
+        rota and a double booking), so you can see the Ribbon before you hand
         over a password. Prefer a checkout? <code>make up</code> builds the same
         stack from the source.
       </p>
@@ -516,6 +607,117 @@ make distinstall        # and put it in your app menu</pre>
       <figcaption id="lightbox-caption"></figcaption>
     </figure>
   </div>
+
+  <script>
+    // Screenshot slider in the Ribbon section. The markup is a plain list of
+    // shots; everything that makes it a slider (arrows, tabs, the moving
+    // track) is switched on from here, so JS off leaves one wide screenshot.
+    (function () {
+      var slider = document.querySelector('[data-slider]');
+      if (!slider) return;
+      var track = slider.querySelector('[data-slider-track]');
+      var slides = Array.prototype.slice.call(track.children);
+      if (slides.length < 2) return;
+      var note = slider.querySelector('[data-slider-note]');
+      var tabBar = slider.querySelector('[data-slider-tabs]');
+      var still = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var DWELL = 6500;
+      var index = 0;
+      var timer = null;
+      var manual = false;   // once the reader steers, it stops steering itself
+
+      // Tabs are built rather than written out: without this script they'd be
+      // six buttons that do nothing.
+      var tabs = slides.map(function (slide, i) {
+        var tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'landing-slider-tab';
+        tab.textContent = slide.dataset.label || String(i + 1);
+        tab.addEventListener('click', function () { stop(); go(i); });
+        tabBar.appendChild(tab);
+        return tab;
+      });
+
+      // Off-screen slides are lazy, so warm the neighbours before they are
+      // asked for. Otherwise the first look at each is a blank frame.
+      function warm(i) {
+        var img = slides[(i + slides.length) % slides.length].querySelector('img');
+        if (img) img.loading = 'eager';
+      }
+
+      function go(i) {
+        index = (i + slides.length) % slides.length;
+        track.style.transform = 'translateX(' + (-100 * index) + '%)';
+        if (note) note.textContent = slides[index].dataset.note || '';
+        slides.forEach(function (slide, n) {
+          var off = n !== index;
+          slide.setAttribute('aria-hidden', off ? 'true' : 'false');
+          var btn = slide.querySelector('button');
+          if (btn) btn.tabIndex = off ? -1 : 0;
+        });
+        tabs.forEach(function (tab, n) {
+          if (n === index) tab.setAttribute('aria-current', 'true');
+          else tab.removeAttribute('aria-current');
+        });
+        warm(index + 1);
+        warm(index - 1);
+      }
+
+      function play() { if (!manual && !still.matches && timer === null) timer = setInterval(function () { go(index + 1); }, DWELL); }
+      function pause() { clearInterval(timer); timer = null; }
+      function stop() { manual = true; pause(); }
+
+      slider.querySelector('[data-slider-prev]').addEventListener('click', function () { stop(); go(index - 1); });
+      slider.querySelector('[data-slider-next]').addEventListener('click', function () { stop(); go(index + 1); });
+      // Opening a shot full size counts as steering, and the lightbox covers
+      // the slider anyway.
+      slides.forEach(function (slide) {
+        var btn = slide.querySelector('.landing-shot-btn');
+        if (btn) btn.addEventListener('click', stop);
+      });
+
+      slider.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        stop();
+        go(index + (e.key === 'ArrowRight' ? 1 : -1));
+      });
+
+      // Swipe. A horizontal drag that lands on a shot would otherwise also
+      // count as a click on it, so the click after one is swallowed.
+      var startX = null;
+      var swiped = false;
+      slider.addEventListener('pointerdown', function (e) { startX = e.clientX; swiped = false; });
+      slider.addEventListener('pointerup', function (e) {
+        if (startX === null) return;
+        var dx = e.clientX - startX;
+        startX = null;
+        if (Math.abs(dx) < 40) return;
+        swiped = true;
+        stop();
+        go(index + (dx < 0 ? 1 : -1));
+      });
+      slider.addEventListener('pointercancel', function () { startX = null; });
+      slider.addEventListener('click', function (e) {
+        if (!swiped) return;
+        swiped = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+
+      slider.addEventListener('mouseenter', pause);
+      slider.addEventListener('mouseleave', play);
+      slider.addEventListener('focusin', pause);
+      slider.addEventListener('focusout', play);
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) pause(); else play();
+      });
+
+      slider.classList.add('is-ready');
+      go(0);
+      play();
+    })();
+  </script>
 
   <script>
     // Screenshot lightbox: thumbnails carry the full-size source and the long

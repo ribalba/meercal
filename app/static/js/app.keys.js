@@ -1,13 +1,13 @@
 /* Keyboard. The program is for people who would rather not reach for a mouse,
    so every view-level thing has a key, and the cheat sheet in the sidebar is
-   generated from the same table that binds them — a shortcut cannot drift out
+   generated from the same table that binds them, so a shortcut cannot drift out
    of step with its own documentation. */
 
 window.App = window.App || {};
 
 App.keys = (() => {
   // Order is the cheat sheet's order, and the cheat sheet shows the first nine
-  // until it is opened — so the ones you reach for most come first. Today
+  // until it is opened, so the ones you reach for most come first. Today
   // leads: it is the only key you press from anywhere in the calendar.
   const BINDINGS = [
     { key: "t", label: "Today", run: () => App.shell.today() },
@@ -27,7 +27,7 @@ App.keys = (() => {
       run: (e) => {
         const set = App.state.sets.find((s) => s.hotkey === Number(e.key));
         if (set) App.shell.applySet(set.id);
-        // 0 means everything even when no set has claimed it — the one key
+        // 0 means everything even when no set has claimed it: the one key
         // that should always get you back to seeing the lot.
         else if (e.key === "0") App.shell.setVisible(App.state.calendars.map((c) => c.id));
       } },
@@ -45,7 +45,7 @@ App.keys = (() => {
 
      Two-digit months are the whole difficulty: after `g 1` the user may mean
      January, or may be halfway through October. So a leading 1 waits a moment
-     for a second digit and any other digit resolves at once — which makes
+     for a second digit and any other digit resolves at once, which makes
      `g 9` instant and `g 12` cost one short pause, rather than making every
      jump wait. */
   const JUMP_WINDOW = 2000;    // how long `g` stays armed
@@ -53,7 +53,7 @@ App.keys = (() => {
   let jump = null;             // { buffer, timer, armedAt }
 
   /* What the sequence looks like while it is being typed. A mode with nothing
-     on screen is a mode that feels like the keyboard has stopped working —
+     on screen is a mode that feels like the keyboard has stopped working,
      especially this one, where the next keypress means something different
      from usual. */
   function paintHint(text) {
@@ -96,7 +96,7 @@ App.keys = (() => {
     if (!jump) {
       if (e.key !== "g") return false;
       jump = { buffer: "", timer: setTimeout(cancelJump, JUMP_WINDOW) };
-      paintHint('<kbd>g</kbd><span>Go to month — type <b>1</b>–<b>12</b></span>');
+      paintHint('<kbd>g</kbd><span>Go to month: type <b>1</b>–<b>12</b></span>');
       return true;
     }
     if (!/^[0-9]$/.test(e.key)) { cancelJump(); return false; }
@@ -106,7 +106,7 @@ App.keys = (() => {
     if (jump.buffer === "1") {
       // Ambiguous for a moment: 1, or the start of 10/11/12. Say so, rather
       // than looking like nothing happened.
-      paintHint('<kbd>g 1</kbd><span>January — or keep typing for <b>10</b>, <b>11</b>, <b>12</b></span>');
+      paintHint('<kbd>g 1</kbd><span>January, or keep typing for <b>10</b>, <b>11</b>, <b>12</b></span>');
       jump.timer = setTimeout(() => goToMonth(1), SECOND_DIGIT);
       return true;
     }

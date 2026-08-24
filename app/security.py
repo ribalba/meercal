@@ -3,7 +3,7 @@
 A localhost install is open: there is nothing between the browser and the app
 but the loopback interface, and a password there protects nothing that the
 user's own login has not already protected. Setting ``server.password`` turns
-the gate on — and with it the requirement that nothing at all is served over a
+the gate on, and with it the requirement that nothing at all is served over a
 plaintext connection to anywhere but loopback, because a browser that gets the
 page gets the login form, and by then the password has already crossed the
 network whatever the server says afterwards.
@@ -30,7 +30,7 @@ settings = get_settings()
 COOKIE = "meercal_session"
 # A month. Long, because the alternative to a long session on a personal
 # calendar is a password typed so often it ends up in a password manager's
-# autofill anyway — and the cookie is HttpOnly and Secure where it matters.
+# autofill anyway, and the cookie is HttpOnly and Secure where it matters.
 MAX_AGE = 30 * 24 * 3600
 
 LOOPBACK = ("127.0.0.1", "::1", "localhost")

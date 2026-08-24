@@ -164,7 +164,7 @@ def test_sets_can_be_made_edited_and_applied(client, seeded):
     assert made.status_code == 200, made.text
     set_id = made.json()["id"]
 
-    # Renamed, re-keyed, and with a different membership — all three are the
+    # Renamed, re-keyed, and with a different membership: all three are the
     # reason a set is editable rather than only creatable.
     edited = client.patch(f"/api/sets/{set_id}", json={
         "name": "All of it", "hotkey": 9, "calendars": [seeded["family"]],
@@ -204,7 +204,7 @@ def test_a_set_cannot_take_another_set_s_name(client, seeded):
 
 def test_clearing_a_key_needs_saying_so(client, seeded):
     made = client.post("/api/sets", json={"name": "Keyed", "hotkey": 7, "calendars": []}).json()
-    # A bare PATCH leaves it alone — null is what "unchanged" looks like.
+    # A bare PATCH leaves it alone; null is what "unchanged" looks like.
     kept = client.patch(f"/api/sets/{made['id']}", json={"name": "Keyed still"}).json()
     assert kept["hotkey"] == 7
     cleared = client.patch(f"/api/sets/{made['id']}", json={"clear_hotkey": True}).json()

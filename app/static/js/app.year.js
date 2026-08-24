@@ -1,8 +1,8 @@
-/* Year — twelve months, and the long things laid across all of them.
+/* Year: twelve months, and the long things laid across all of them.
 
    A year view is usually a wall of tiny numbers that answers only "which day
    is the 3rd on". The useful question at this zoom is a different one: *what
-   is this year shaped like* — when am I away, when is the school shut, which
+   is this year shaped like*: when am I away, when is the school shut, which
    month has nothing in it. So the year opens with a band of the long events
    drawn across a twelve-month axis, the same events the Ribbon puts in its
    rail, and the months below are tinted by what covers them.
@@ -103,7 +103,7 @@ App.year = (() => {
     if (longs.length > MAX_SPAN_ROWS) {
       band.append(App.el("button", {
         class: "yr-more",
-        text: `+${longs.length - MAX_SPAN_ROWS} more — open them in the Ribbon`,
+        text: `+${longs.length - MAX_SPAN_ROWS} more, open them in the Ribbon`,
         onclick: () => {
           document.getElementById("filter-input").value = "is:span";
           App.search.apply("is:span");
@@ -120,7 +120,7 @@ App.year = (() => {
     const box = App.el("div", { class: "yr-month" },
       App.el("button", {
         class: "yr-month-name",
-        title: `Open ${first.toLocaleDateString(undefined, { month: "long" })} — or press g ${month + 1}`,
+        title: `Open ${first.toLocaleDateString(undefined, { month: "long" })}, or press g ${month + 1}`,
         onclick: () => App.shell.goTo(first, "month"),
       },
         // The number, in a bubble: it is what `g 1`–`g 12` takes, so the view

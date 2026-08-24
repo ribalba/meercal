@@ -4,7 +4,7 @@
 
 <h1 align="center">meercal</h1>
 
-<p align="center">The meercal calendar — for people who have too many calendars</p>
+<p align="center">The meercal calendar, for people who have too many calendars</p>
 
 ---
 
@@ -19,18 +19,20 @@ Windows.
 drawn continuously · **calendar sets** on number keys and alt-click **solo**, for the twenty
 calendars problem · iCloud, CalDAV, Google and `.ics` · a filter bar that types like meerail's
 search (`cal:family with:anna is:span`, POSIX regex optional) · search across every calendar,
-hidden ones included · clashes between calendars marked, not left to be noticed · full
+hidden ones included · clashes between calendars marked, not left to be noticed ·
+**reminders** on your desktop, your phone or an actual phone call, with rules written in the
+same filter language and a mute per event · full
 keyboard control · light + dark, following the system or pinned · optional **meerail**
 integration: invite from the people you actually write to.
 
 It splits into two pieces, for the same reason meerail does:
 
-- **`meercal-agent`** — runs on your machine and owns the whole write path: it speaks CalDAV
+- **`meercal-agent`**: runs on your machine and owns the whole write path: it speaks CalDAV
   to iCloud and friends, parses and expands what it finds, and writes it into Postgres. Your
   calendar passwords never leave the host.
-- **`meercal-server`** — the web layer in Docker: FastAPI plus the UI. It only reads the
+- **`meercal-server`**: the web layer in Docker: FastAPI plus the UI. It only reads the
   database and enqueues your actions; it never fetches a calendar and holds no credentials.
-- **`core`** — the library both import: models, parsing, recurrence expansion, ingest.
+- **`core`**: the library both import: models, parsing, recurrence expansion, ingest.
 
 ## Background
 
@@ -40,7 +42,7 @@ say they are the same thing; a week grid pushes it into an all-day strip that sc
 sight. The thing you are actually in the middle of ends up being the hardest thing on the
 screen to see. The Ribbon does not wrap: days run down the page, long events are continuous
 bars in a rail beside them, packed into parallel lanes the way a commit graph packs branches,
-and each bar's label is sticky — it rides down beside whatever day you are reading and says
+and each bar's label is sticky: it rides down beside whatever day you are reading and says
 *day 4 of 19*.
 
 **Many calendars, not one.** Work, family, the school, an on-call rota, two clients, a
@@ -50,12 +52,12 @@ you switch with a number key, alt-click solos one the way a layer solo works in 
 and hiding a calendar never hides it from search.
 
 **Expansion, materialised.** Recurrence is expanded into rows over a rolling horizon, so
-drawing a fortnight is one index scan whatever the number of calendars — rather than running
+drawing a fortnight is one index scan whatever the number of calendars, rather than running
 twenty rule engines per repaint, which is exactly what makes other clients slow in the case
 this program exists for.
 
 **Postgres as the store, not a cache.** Years of your time in a real database, with the
-original `VEVENT` text kept alongside — so `make psql` can answer questions no calendar app
+original `VEVENT` text kept alongside, so `make psql` can answer questions no calendar app
 exposes, and an edit patches the server's own iCalendar rather than rewriting it from a model
 that does not know about the alarm your phone set.
 
@@ -64,13 +66,13 @@ that does not know about the alarm your phone set.
 | | |
 | --- | --- |
 | **Docker** | Engine 24+ with the Compose v2 plugin. Runs the web layer and its Postgres. |
-| **Python** | 3.11+ on the host, for the agent — which runs outside Docker on purpose. |
-| **Calendar access** | An app-specific password for iCloud (appleid.apple.com — your normal password will not work), or any CalDAV account. Google needs an OAuth client; a secret `.ics` address works read-only with no credentials at all. |
+| **Python** | 3.11+ on the host, for the agent, which runs outside Docker on purpose. |
+| **Calendar access** | An app-specific password for iCloud (appleid.apple.com; your normal password will not work), or any CalDAV account. Google needs an OAuth client; a secret `.ics` address works read-only with no credentials at all. |
 | **Disk** | Small. A calendar is kilobytes per event; the expansion table is the bulk of it, and it is bounded by the horizon. |
 
 ## Install: the quick way
 
-No clone, no build, no Python on your machine — one script that asks what it needs, writes a
+No clone, no build, no Python on your machine. One script that asks what it needs, writes a
 configuration, and runs the published containers.
 
 ```bash
@@ -103,7 +105,7 @@ Unlike meerail, the **agent is a container here too**. meerail has to run its ag
 host because Proton Bridge listens on the host's loopback; meercal's agent talks to CalDAV
 servers out on the internet, so there is nothing on your machine it needs to reach. Your
 calendar passwords still stay put: they are in `~/.meercal/meercal.toml`, mode 0600, mounted
-read-only into the two containers that read it — which is also why those containers run as
+read-only into the two containers that read it, which is also why those containers run as
 you rather than as root.
 
 ## Install: from a checkout
@@ -170,7 +172,7 @@ open it the way it opens Gmail for meerail. Two ways in:
   iCal format*) as an `ics` account. Read-only, no credentials, works today.
 - **OAuth**: create a Desktop client in the Google Cloud Console, then put `client_id`,
   `client_secret` and `refresh_token` in the account block with `kind = "google"`. The rest is
-  ordinary CalDAV with a bearer token — see `agent/google.py`.
+  ordinary CalDAV with a bearer token; see `agent/google.py`.
 
 ## The views
 
@@ -192,13 +194,13 @@ Clicking an empty day in the Ribbon starts an event on it, the way double-clicki
 does in the other views. The cheat sheet in the sidebar is generated from the table
 that binds them, so it cannot drift.
 
-The **mouse wheel pages** in every view but the Ribbon — which is one continuous scroll and
+The **mouse wheel pages** in every view but the Ribbon, which is one continuous scroll and
 has nowhere to page to. In the week and day grids it scrolls the hours first and only changes
 the date once it runs out of them, so neither gesture costs the other.
 
 ### Places you keep typing
 
-Half the locations in a calendar are the same handful — the office, that room, the same
+Half the locations in a calendar are the same handful: the office, that room, the same
 meeting link. Put them in `meercal.toml` and they are offered as chips under the event
 panel's **Where** field:
 
@@ -214,7 +216,7 @@ the order written. Clicking the chip that is already in the field clears it agai
 
 ### Sets
 
-A set is a named group of calendars with a number key on it — the answer to having twenty of
+A set is a named group of calendars with a number key on it: the answer to having twenty of
 them. Click one to apply it, the pencil to change it: rename, move its key, tick what belongs
 in it. A key belongs to one set, so giving `3` to a second set takes it off the first rather
 than leaving two that both answer to it. Sets are listed in key order, which puts `0` at the
@@ -222,7 +224,7 @@ top.
 
 ## Filtering and search
 
-The bar above the calendar **filters the view you are in** — words are ANDed, a quoted phrase
+The bar above the calendar **filters the view you are in**: words are ANDed, a quoted phrase
 matches whole, and the filters are the nouns of a calendar:
 
 ```
@@ -232,7 +234,114 @@ standup cal:work with:anna in:berlin is:span is:recurring is:free
 Tick **Regex** and the pattern goes to Postgres as a POSIX regular expression (`~*`) against a
 trigram-indexed column, so `standup|jour fixe` costs what a word costs. Press **Enter** and
 the same query becomes a search across *every* calendar, including the ones you have switched
-off — hiding is about the drawing, never about the data.
+off; hiding is about the drawing, never about the data.
+
+## Reminders
+
+Reminders are the one thing a calendar does unprompted, so meercal puts them where the
+credentials already are: **the agent**. A container cannot show you a desktop notification and
+should not hold a Twilio token. The scheduler runs beside the sync loop, or on its own, if
+the machine you sit at is not the machine that syncs.
+
+Four places a reminder can go, and adding a fifth is one file:
+
+| | |
+| --- | --- |
+| `desktop` | `notify-send` on this machine. `urgency = "critical"` means it stays on screen until dismissed, which is the only setting that makes a reminder a reminder. |
+| `ntfy` | A push to your phone, over [ntfy](https://ntfy.sh) or your own server. |
+| `twilio` | An actual phone call. The TwiML goes inline in the request, so this needs **no public webhook**, and nothing of yours is exposed. Or `mode = "sms"`. |
+| `app` | A notification from the meercal window, while it is open. The one that works with no agent running. |
+| `command` / `webhook` | The escape hatches: run a program, or POST some JSON. Home Assistant, a lamp, `signal-cli`. |
+
+### A rule is a filter string
+
+There is no second query language. A rule is something you could type into the filter bar,
+plus a lead time:
+
+```toml
+[[reminders.rule]]
+name = "work, on the phone too"
+match = "cal:work is:busy"
+except = "Lunch"                # a shape of event this rule should skip
+lead = ["1h", "10m"]            # a list arms one reminder per entry
+channels = ["desk", "phone"]
+
+[[reminders.rule]]
+name = "birthdays, the evening before"
+match = "is:allday cal:birthdays"
+at = "-1d 18:00"                # an absolute wall clock: an all-day event has no clock
+channels = ["phone"]
+```
+
+`lead = "valarm"` defers to the alarm the calendar server already carries, so meercal agrees
+with your phone instead of telling you the same thing five minutes later.
+
+### The lunch problem
+
+A rule is a statement about a *kind* of event, and there is always an event that is the wrong
+kind. A daily "Lunch" matches `cal:work is:busy` as squarely as a client meeting does, and no
+filter string can see the difference. The difference is that you know what lunch is.
+
+So the **event has the last word**. The bell in the event panel sets each channel to one of
+three things, and *auto is not the same as on*:
+
+| | |
+| --- | --- |
+| **auto** | Whatever the rules say. The default, and it follows a rule you write next month. |
+| **on** | Always, whether or not a rule matched. |
+| **off** | Never, including against rules that do not exist yet. |
+
+That third state is the point. "Never call me about lunch" becomes one bit that stays true
+forever, and the desktop popup still arrives, because only the call was muted. On a repeating
+event the panel asks whether you mean all of them or just this one.
+
+Resolved in this order, and `off` beats `on`:
+
+1. this occurrence · 2. the whole series · 3. the event's own VALARM · 4. matching rules ·
+5. nothing fires
+
+Quiet hours and daily caps sit above all five: a hand-set **on** does not buy a way past
+`max_per_day`, because that setting exists to stop exactly the accident a hand-set override is
+most likely to cause.
+
+### Two commands worth knowing
+
+```bash
+make remind-test            # one real notification through every channel
+make remind-next            # what would fire in the next 24 hours, muted ones included
+```
+
+`--test` verifies the Twilio credentials **without placing a call**: the moment to find out a
+token is wrong is not the morning you miss the appointment. `--next` resolves the same chain
+the scheduler does and prints muted reminders too, so *"why didn't it ring"* has an answer
+that is one command long:
+
+```
+Mon 16:34  Lunch            desk     · muted on the whole series  [muted]
+Mon 17:29  Zahnarzt         desk     · work, on the phone too
+Mon 17:29  Zahnarzt         phone    · work, on the phone too
+```
+
+### Run it as a user service, not a system one
+
+`notify-send` needs the session bus. Under a systemd **system** unit there is no
+`DBUS_SESSION_BUS_ADDRESS`, and every desktop reminder fails into a log nobody reads while the
+calendars carry on syncing perfectly. `make remind-test` refuses to pass in that state rather
+than letting you discover it later. There is a user unit in
+[`contrib/meercal-agent.service`](contrib/meercal-agent.service):
+
+```bash
+cp contrib/meercal-agent.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now meercal-agent
+```
+
+### One privacy note
+
+A public ntfy topic is readable by anyone who guesses its name, and what travels over it is
+the titles of your appointments. Make the topic long and random, keep the token in the
+environment rather than in `meercal.toml`, and use `detail` to decide how much leaves the
+machine: `full`, `title`, or `none`, where `none` sends "a reminder" and you open the app to
+see what it was. Self-hosting ntfy is the real answer; `server` is one line.
 
 ## The desktop app
 
@@ -243,7 +352,7 @@ make desktop                                   # npm install && npm start
 cd electron && make distinstall                # build and register it with the desktop
 ```
 
-It is a window around the same web app, so nothing moves — but it adds the two
+It is a window around the same web app, so nothing moves, but it adds the two
 things a browser tab cannot. It reports the window's **focus** to the page,
 which is how meercal knows it is behind another window rather than merely
 hidden, and stands its polling down until you come back (then reloads, because
@@ -254,10 +363,30 @@ panel's title, location and notes.
 [`electron/README.md`](electron/README.md) for the installers and what
 `distinstall` puts where.
 
+## Updating
+
+The server asks github once a day whether a newer `VERSION` is on main, and shows a quiet
+strip at the foot of the sidebar if there is: dismissible, and dismissing pins that version
+so the next release says its piece and this one stays quiet. It is the only outbound request
+meercal makes; `update_check = false` in `meercal.toml` means it makes none at all.
+
+Taking the update:
+
+```bash
+bash meercal.sh update    # a meercal.sh install: pulls the new images and restarts
+```
+
+```bash
+git pull && make up       # a checkout: rebuilds and restarts
+```
+
+Either way the database migrates itself on first boot, and your events are in a Docker volume
+that neither path touches. `bash meercal.sh backup` first if you would rather not find out.
+
 ## Working with meerail
 
 Set `[meerail] database_url` to your [meerail](https://github.com/ribalba/meerail) database
-and the attendee field autocompletes from the people you actually correspond with — meerail
+and the attendee field autocompletes from the people you actually correspond with: meerail
 builds that address book from every message it holds, ranked by how often. It is read-only:
 meercal never writes to your mail.
 
@@ -265,8 +394,8 @@ meercal never writes to your mail.
 
 The same app, laid out for the width: the sidebar becomes a drawer behind the ☰ button, the
 view switch gets a row of its own rather than falling off the end of the toolbar, and Create
-is a floating button. The Ribbon is the view that gains most from a narrow screen — it is a
-single column by nature — and the week grid scrolls sideways rather than squeezing seven
+is a floating button. The Ribbon is the view that gains most from a narrow screen (it is a
+single column by nature), and the week grid scrolls sideways rather than squeezing seven
 columns into forty pixels each.
 
 ## Architecture
@@ -290,7 +419,7 @@ not have one.
 | Table | What it holds |
 | --- | --- |
 | `accounts`, `calendars` | Where calendars come from, what colour they are, what is drawn |
-| `events` | One `VEVENT` as the server sent it — the rule, not the instances |
+| `events` | One `VEVENT` as the server sent it: the rule, not the instances |
 | `occurrences` | The expansion: one row per appearance, over a rolling horizon |
 | `calendar_sets` | Named groups of calendars, with a number key |
 | `pending_actions` | Changes made in the UI, waiting for the agent to push them |
@@ -309,7 +438,7 @@ tools/caldav_test_server.sh stop
 ```
 
 The tests that need Postgres skip without `MEERCAL_TEST_DB`, and the CalDAV ones skip without
-a server — so a bare `pytest` still runs everything that does not.
+a server, so a bare `pytest` still runs everything that does not.
 
 ### Releasing
 
@@ -322,7 +451,7 @@ make push       # build for linux/amd64 + linux/arm64 and push to Docker Hub
 `VERSION` is the single source of the number: it tags both images, stamps their OCI labels,
 and is what an install compares itself against to notice an update. `make push` gives each
 image `:$(VERSION)` and `:latest` in one command, so the two tags cannot end up pointing at
-different builds — which is the failure that has somebody debugging a version they are not
+different builds, which is the failure that has somebody debugging a version they are not
 running. It needs `docker login` first.
 
 The website that fronts this is in [`website/`](website/); its screenshots are captured from

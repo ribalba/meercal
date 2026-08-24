@@ -1,4 +1,4 @@
-/* The Ribbon — meercal's own view, and the reason this program exists.
+/* The Ribbon: meercal's own view, and the reason this program exists.
 
    Two problems shape it, and both come from having many calendars rather than
    one.
@@ -10,7 +10,7 @@
    is one continuous stretch of time.
 
    The Ribbon does not wrap. Days run down the page continuously, so a
-   three-week event is *one bar*, three weeks tall, in a rail down the left —
+   three-week event is *one bar*, three weeks tall, in a rail down the left,
    unbroken because time is unbroken. Its label is `position: sticky`, so it
    rides along beside whatever day you are reading and tells you where you are
    inside it: "day 4 of 19". Overlapping long events are packed into parallel
@@ -23,8 +23,8 @@
    per calendar throughout, and events from different calendars that collide
    are marked as a clash rather than left to be noticed.
 
-   Week boundaries are still there — a rule and an ISO week number in the
-   gutter — because losing the week's rhythm was the one thing a continuous
+   Week boundaries are still there (a rule and an ISO week number in the
+   gutter) because losing the week's rhythm was the one thing a continuous
    view could not afford to cost. */
 
 window.App = window.App || {};
@@ -46,7 +46,7 @@ App.ribbon = (() => {
   const SLIDE_DAYS = 45;
 
   let root = null;          // the scrolling container
-  let rows = [];            // {date, kind, top}  — one per rendered grid row
+  let rows = [];            // {date, kind, top}: one per rendered grid row
   let dayRow = new Map();   // "YYYY-MM-DD" -> row index
   let spans = [];           // laid-out long events
   let lanes = 0;
@@ -137,7 +137,7 @@ App.ribbon = (() => {
     /* Clicking the empty part of a day starts an event on it, the way
        double-clicking the grid does in the other views. A single click here
        because a day row is a discrete target rather than a surface you drag
-       across — and only when the click landed on the row itself, so the chips
+       across, and only when the click landed on the row itself, so the chips
        keep opening what they are. */
     body.addEventListener("click", (ev) => {
       if (ev.target !== body && !ev.target.classList.contains("rb-empty")) return;
@@ -168,8 +168,8 @@ App.ribbon = (() => {
   }
 
   /* What time a click on a day means. A day row has no hour axis, so: the next
-     half hour if it is today — which is nearly always what "add something now"
-     means — and nine in the morning otherwise. */
+     half hour if it is today, which is nearly always what "add something now"
+     means, and nine in the morning otherwise. */
   function defaultTimeOn(date) {
     if (!T().isToday(date)) {
       return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0);
@@ -234,7 +234,7 @@ App.ribbon = (() => {
       "button",
       {
         class: "rb-quiet",
-        title: "Nothing here — click to open these days anyway",
+        title: "Nothing here. Click to open these days anyway",
         onclick: () => { App.state.prefs.collapseQuiet = false; App.load.prefs(); render(); },
       },
       App.el("span", { text: `${label} · ${from.getDate()}–${to.getDate()}` }),
@@ -254,7 +254,7 @@ App.ribbon = (() => {
 
     const grid = App.el("div", { class: "ribbon-grid" });
     // Never zero. `repeat(0, …)` is invalid CSS, and an invalid value takes the
-    // whole grid-template-columns declaration with it — which drops the grid
+    // whole grid-template-columns declaration with it, which drops the grid
     // back to auto columns and draws the day rows and the gutter in the wrong
     // order. A fortnight with no long events in it is an ordinary fortnight,
     // so this was a view that broke on the *easy* case. The rail is collapsed
@@ -344,8 +344,8 @@ App.ribbon = (() => {
     grid.append(...cells);
     root.replaceChildren(grid);
     root.classList.toggle("has-rail", lanes > 0);
-    // Synchronously, not in a frame's time: everything that scrolls — Today,
-    // the arrows, restoring the anchor after the window slides — reads these
+    // Synchronously, not in a frame's time: everything that scrolls (Today,
+    // the arrows, restoring the anchor after the window slides) reads these
     // offsets immediately after a render, and a deferred measure means it
     // reads the *previous* render's. Reading offsetTop forces the layout the
     // browser was going to do anyway, so this costs nothing it saved.
@@ -355,12 +355,12 @@ App.ribbon = (() => {
 
   // --- "day 4 of 19" --------------------------------------------------------
 
-  /* Row tops, cached, *in the scroller's own coordinates* — which is what
+  /* Row tops, cached, *in the scroller's own coordinates*, which is what
      `scrollTop` speaks and therefore the only thing worth storing.
 
      `offsetTop` alone is not that: it is measured from the nearest positioned
      ancestor, and #stage is not positioned, so it comes back relative to the
-     document — toolbar and filter bar included. Scrolling to it overshot by the
+     document, toolbar and filter bar included. Scrolling to it overshot by the
      height of the page furniture, which is how pressing `t` put today above the
      top of the view and behind the bars. Subtracting the grid's own offsetTop
      cancels whatever that ancestor is. */
@@ -376,7 +376,7 @@ App.ribbon = (() => {
      into "you are on day 4 of 19". */
   /* How much of the top of the scroller the sticky month header covers. Both
      "which day am I looking at" and "scroll to this day" have to agree about
-     it, or `g 11` scrolls to November and the toolbar says October — the row
+     it, or `g 11` scrolls to November and the toolbar says October: the row
      above the target is the one still touching the very top. */
   function stickyClearance() {
     const sticky = root.querySelector(".rb-month");
@@ -390,7 +390,7 @@ App.ribbon = (() => {
       if (r.kind !== "day" && r.kind !== "quiet") continue;
       // Rows are in date order and so are their tops, so the last one that has
       // passed the top of the viewport is the day being read. The `break` is
-      // the whole point — without measured tops every row would look like it
+      // the whole point: without measured tops every row would look like it
       // qualifies and this would answer with the end of the range.
       if (r.top <= y) found = r; else break;
     }
@@ -413,7 +413,7 @@ App.ribbon = (() => {
 
   /* Slide the loaded window, keeping its size. Growing it instead would mean
      an ever-larger query and an ever-taller grid for a reader who is only ever
-     looking at one screenful — and the server refuses a range past 800 days
+     looking at one screenful, and the server refuses a range past 800 days
      anyway, so the growth has an end that arrives as an error. */
   async function extend(direction) {
     if (extending) return;
@@ -436,15 +436,15 @@ App.ribbon = (() => {
 
   function onScroll() {
     // Replacing the stage's contents resets its scrollTop, which fires a
-    // scroll event — and #stage is shared with every other view. Without this
+    // scroll event, and #stage is shared with every other view. Without this
     // guard, switching away from the Ribbon fired this handler, which saw
     // itself near the edge of its old window, fetched, and drew the Ribbon
     // back over the week that had just replaced it.
     if (!root || extending || App.state.view !== "ribbon") return;
     // The counters are just what is on screen, so they follow every scroll.
     updateCounters();
-    // The date does not. A programmatic scroll — the one every render ends
-    // with, and the jump `t` makes — fires this too, and replacing the grid
+    // The date does not. A programmatic scroll (the one every render ends
+    // with, and the jump `t` makes) fires this too, and replacing the grid
     // resets scrollTop to 0 first. Reading the cursor from that moment is how
     // opening the Ribbon used to drag the date back to the top of the loaded
     // window: press `w` afterwards and you were six weeks in the past.
@@ -496,7 +496,7 @@ App.ribbon = (() => {
   async function goto(date) {
     App.state.cursor = T().day(date);
     if (scrollToDate(date)) return;
-    // Not in the loaded window — fetch one around it. `show` scrolls to the
+    // Not in the loaded window, so fetch one around it. `show` scrolls to the
     // cursor itself once the render has been measured.
     await show(root);
   }

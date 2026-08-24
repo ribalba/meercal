@@ -1,4 +1,4 @@
-/* Week and day — the familiar grid, kept because it is genuinely the right
+/* Week and day: the familiar grid, kept because it is genuinely the right
    drawing for "what is my Tuesday like".
 
    The long events live in a strip above the grid rather than inside it, and

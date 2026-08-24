@@ -1,4 +1,4 @@
-"""A small CalDAV client — PROPFIND, REPORT, PUT, DELETE and nothing else.
+"""A small CalDAV client: PROPFIND, REPORT, PUT, DELETE and nothing else.
 
 Hand-rolled rather than pulled in, for the same reason meerail speaks IMAP
 itself: what this program needs is four requests, and owning them means the
@@ -13,7 +13,7 @@ Two things about real servers shape this file:
   against whatever host actually answered.
 * **Sync tokens are optional.** RFC 6578 gives an incremental listing, and a
   pass over a quiet calendar is then one request. Servers that do not implement
-  it — or that expire a token — get a full listing of hrefs and etags instead,
+  it, or that expire a token, get a full listing of hrefs and etags instead,
   which is still cheap because the bodies are only fetched for what changed.
 """
 
@@ -140,7 +140,7 @@ class CalDAVClient:
         """An href against the URL that actually answered.
 
         Servers return paths, and after a redirect the path belongs to the host
-        we were sent to — not the one in the configuration file. Getting this
+        we were sent to, not the one in the configuration file. Getting this
         wrong is how an iCloud account syncs once and then 404s forever.
         """
         return urljoin(str(base), href)
@@ -213,14 +213,14 @@ class CalDAVClient:
     # --- listing ----------------------------------------------------------
 
     def changes(self, calendar_url: str, sync_token: str = "") -> Listing:
-        """What is different since ``sync_token`` — or everything, if it cannot say."""
+        """What is different since ``sync_token``, or everything if it cannot say."""
         if sync_token:
             try:
                 return self._sync_collection(calendar_url, sync_token)
             except CalDAVError:
                 # An expired or unknown token is answered with 403/409 by most
                 # servers. That is not a failure, it is a request for a full
-                # listing — which is exactly what the fallback does.
+                # listing, which is exactly what the fallback does.
                 pass
         listing = self._etag_listing(calendar_url)
         try:

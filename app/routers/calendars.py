@@ -2,7 +2,7 @@
 them in one keystroke.
 
 Visibility is server state, not browser state. With twenty calendars, "which
-ones am I looking at" is a real piece of the working set — it should survive a
+ones am I looking at" is a real piece of the working set: it should survive a
 reload, a second window, and the laptop being closed, and localStorage survives
 none of those reliably.
 """
@@ -103,7 +103,7 @@ def update_set(set_id: int, body: SetPatch, db: Session = Depends(get_db)) -> di
     """Rename a set, move its key, or change what is in it.
 
     By id rather than by name, because renaming is one of the things this is
-    for — and `hotkey` cannot express "take the key away" with a value, since
+    for, and `hotkey` cannot express "take the key away" with a value, since
     null is also what "unchanged" looks like on a PATCH. Hence `clear_hotkey`.
     """
     cset = db.get(CalendarSet, set_id)
@@ -176,7 +176,7 @@ class Prefs(BaseModel):
 
 @router.put("/prefs")
 def put_prefs(body: Prefs, db: Session = Depends(get_db)) -> dict:
-    """The client's own state — chosen view, density, what the ribbon collapses.
+    """The client's own state: chosen view, density, what the ribbon collapses.
 
     Stored whole rather than key by key: it is small, it is written on a debounce
     from one place, and a merge would only be a way for two windows to lose each

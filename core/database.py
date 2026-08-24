@@ -60,7 +60,7 @@ def wait_for_db(timeout: float = 60.0) -> None:
 
 
 # Everything SQLAlchemy's create_all cannot express. Each statement is written
-# to be safe to run on every start — this is a schema bootstrap, not a
+# to be safe to run on every start: this is a schema bootstrap, not a
 # migration framework, and the project is young enough that it does not need
 # one yet.
 _EXTRA_DDL = (
@@ -78,7 +78,7 @@ _EXTRA_DDL = (
 
 
 def init_db() -> None:
-    from . import models  # noqa: F401 — registers the mappers before create_all
+    from . import models  # noqa: F401; registers the mappers before create_all
 
     wait_for_db()
     Base.metadata.create_all(bind=engine)

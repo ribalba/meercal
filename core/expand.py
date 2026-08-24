@@ -1,4 +1,4 @@
-"""Recurrence expansion — rules in, rows out.
+"""Recurrence expansion: rules in, rows out.
 
 Why materialise at all: the thing this program is for is having *many*
 calendars open at once. Drawing a fortnight then means asking twenty
@@ -9,7 +9,7 @@ index, whatever the number of calendars.
 
 What that costs is a horizon: an infinite series exists as rows only between
 ``horizon_past_days`` and ``horizon_future_days`` around today. The window rolls
-forward (``roll_horizon``), and anything outside it is still in ``events`` — it
+forward (``roll_horizon``), and anything outside it is still in ``events``: it
 is the drawing that is bounded, not the data.
 """
 
@@ -28,7 +28,7 @@ from .timeutil import days_touched, from_utc, to_utc, utcnow, zone
 # A rule that produces more instances than this in one horizon is a mistake or
 # an attack, not a calendar: a DAILY rule over the default horizon is under two
 # thousand, and a MINUTELY one is millions. Stopping is better than filling the
-# table — the event is still there, and only its tail is missing.
+# table. The event is still there, and only its tail is missing.
 MAX_INSTANCES = 5000
 
 
@@ -36,7 +36,7 @@ def recurrence_key(wall: datetime, all_day: bool) -> str:
     """How a RECURRENCE-ID is written for matching.
 
     Only ever compared against another key made here, so the exact spelling
-    does not matter — what matters is that an override and the instance it
+    does not matter. What matters is that an override and the instance it
     replaces produce the same string, which is why it is built from the *local*
     wall time both of them are stated in.
     """
@@ -67,7 +67,7 @@ def instances(
     as naive-UTC (start, end) pairs.
 
     An occurrence *overlaps* the window if it has not ended before the window
-    starts — which is the whole reason the search below begins a duration
+    starts, which is the whole reason the search below begins a duration
     earlier than the window does. A three-week event that began last month is
     the most important thing on today's screen, and a naive "starts within the
     range" query is exactly what loses it.
@@ -82,7 +82,7 @@ def instances(
             yield start, end
         return
 
-    # The rule is stated in wall time, so the window has to be too — widened by
+    # The rule is stated in wall time, so the window has to be too, widened by
     # the event's own length, plus a day either side to cover the zone offset.
     if event.all_day:
         # An all-day series is stated in dates; the window's UTC bounds are the
@@ -137,8 +137,8 @@ def horizon(settings, now: datetime | None = None) -> tuple[datetime, datetime]:
 def _override_keys(db: Session, event: Event) -> set[str]:
     """The instances of this series that some other row replaces.
 
-    Only asked for masters. An override is a sibling row — same calendar, same
-    UID, a RECURRENCE-ID — and its own single occurrence is written when *it*
+    Only asked for masters. An override is a sibling row (same calendar, same
+    UID, a RECURRENCE-ID) and its own single occurrence is written when *it*
     is rebuilt, so the master must leave that slot empty or the day shows the
     meeting twice: once where it was, once where it was moved to.
     """
@@ -209,7 +209,7 @@ def roll_horizon(db: Session, settings, force: bool = False) -> int:
     """Re-expand everything when the window has moved on.
 
     The horizon is relative to *now*, so a process that has been up for a month
-    is drawing a month less future than it promises — and a weekly meeting's
+    is drawing a month less future than it promises, and a weekly meeting's
     rows simply stop at the edge, silently, which is the worst way for a
     calendar to be wrong. Rebuilding is cheap enough to do daily: it is one
     pass over ``events``, which is thousands of rows, not millions.
