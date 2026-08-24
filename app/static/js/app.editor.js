@@ -164,7 +164,29 @@ App.editor = (() => {
     });
     paintWhen();
 
+    /* The places you keep typing, from meercal.toml. A calendar's locations are
+       a short list in practice — the office, the room, the same meeting link —
+       and typing them out again is the sort of thing a program should notice.
+       Clicking a chip fills the field; clicking the one already in the field
+       clears it, so it toggles rather than being a one-way door. */
+    const places = App.el("div", { class: "places" });
+
     const location = App.el("input", { class: "in", value: event ? event.location || "" : "", placeholder: "Where" });
+    function paintPlaces() {
+      places.replaceChildren(...(App.state.places || []).map((place) => App.el("button", {
+        class: "place" + (location.value.trim() === place.value ? " on" : ""),
+        type: "button",
+        title: place.value,
+        text: place.name,
+        onclick: () => {
+          location.value = location.value.trim() === place.value ? "" : place.value;
+          paintPlaces();
+        },
+      })));
+    }
+    location.addEventListener("input", paintPlaces);
+    paintPlaces();
+
     const description = App.el("textarea", { class: "in", rows: "4", text: (detail && detail.description) || "" });
     // A rule the presets do not cover — "every Tuesday", "the last Friday of
     // the month" — gets an option of its own, carrying the original text.
@@ -250,7 +272,11 @@ App.editor = (() => {
           whenRow,
           App.el("label", { class: "fld inline all-day" }, allDay, App.el("span", { text: "All day" })),
         ),
-        field("Where", location),
+        App.el("div", { class: "fld" },
+          App.el("span", { class: "fld-label", text: "Where" }),
+          location,
+          places,
+        ),
         field("Invite", attendees, App.state.meerail ? "from the people you write to in meerail" : ""),
         people,
         field("Notes", description),

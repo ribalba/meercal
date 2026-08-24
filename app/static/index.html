@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>meercal</title>
   <meta name="theme-color" content="#1d6ff2" />
-  <link rel="icon" type="image/png" href="/static/img/logo-square.png" />
-  <link rel="apple-touch-icon" href="/static/img/logo-square.png" />
+  <!-- Sized files rather than one big PNG for the browser to squeeze: a 512px
+       illustration scaled to 16 by the tab bar turns to mush. -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/img/favicon-180.png" />
   <link rel="stylesheet" href="/static/css/cal.css" />
   <!-- In <head> and blocking on purpose: it sets the theme attribute on <html>
        before the first paint, so a forced theme never flashes the other one. -->
@@ -14,6 +17,8 @@
 </head>
 <body>
   <div class="app" id="app">
+    <!-- The drawer's backdrop. Inert until the drawer is open. -->
+    <div class="scrim" id="scrim" hidden></div>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-toolbar">
         <span class="brand"><img class="brand-logo" src="/static/img/logo-square.png" alt="" />meercal</span>
@@ -46,6 +51,9 @@
 
     <section class="main">
       <header class="toolbar">
+        <!-- Narrow layouts only: the sidebar is a drawer down there. -->
+        <button class="icon-btn menu-btn" id="btn-menu" data-icon="menu"
+                title="Calendars" aria-label="Calendars"></button>
         <button class="btn" id="btn-today" title="Today (t)">Today</button>
         <div class="nav-pair">
           <button class="icon-btn" id="btn-prev" data-icon="left" title="Back (←)"></button>
@@ -86,8 +94,17 @@
       </div>
 
       <div id="stage" class="ribbon"></div>
+
+      <!-- Narrow layouts only: Create lives in the sidebar, and the sidebar is
+           behind a button down here. -->
+      <button class="fab" id="btn-new-fab" data-icon="plus" data-icon-size="24"
+              title="New event" aria-label="New event"></button>
     </section>
   </div>
+
+  <!-- Shown while a key sequence is part-typed. `g` is the only one so far,
+       but a mode you cannot see is a mode nobody uses. -->
+  <div class="key-hint" id="key-hint" hidden></div>
 
   <div class="modal-backdrop" id="filter-help-modal" hidden>
     <div class="modal-card" id="filter-help-card">

@@ -133,6 +133,7 @@ App.shell = (() => {
   }
 
   async function applySet(setId) {
+    closeDrawer();
     const payload = await App.api.post(`/api/sets/${setId}/apply`, {});
     const wanted = new Set(payload.visible);
     App.state.calendars.forEach((c) => { c.visible = wanted.has(c.id); });
@@ -250,7 +251,20 @@ App.shell = (() => {
     else await show();
   }
 
-  function today() { return goTo(new Date()); }
+  function today() { closeDrawer(); return goTo(new Date()); }
+
+  // --- the narrow-layout drawer --------------------------------------------
+
+  function closeDrawer() {
+    document.body.classList.remove("drawer-open");
+    document.getElementById("scrim").hidden = true;
+  }
+
+  function toggleDrawer() {
+    const open = document.body.classList.toggle("drawer-open");
+    // `hidden` comes off first so the fade has something to fade.
+    document.getElementById("scrim").hidden = !open;
+  }
 
   // --- start ----------------------------------------------------------------
 
@@ -270,8 +284,15 @@ App.shell = (() => {
       setTimeout(async () => { await refresh(); ev.currentTarget.classList.remove("spin"); }, 1500);
     };
     document.querySelectorAll("[data-view]").forEach((btn) => {
-      btn.onclick = () => setView(btn.dataset.view);
+      btn.onclick = () => { setView(btn.dataset.view); closeDrawer(); };
     });
+
+    // The drawer. Only reachable below the breakpoint, where the sidebar sits
+    // over the calendar rather than beside it — so anything that acts on the
+    // calendar closes it again.
+    document.getElementById("btn-menu").onclick = toggleDrawer;
+    document.getElementById("scrim").onclick = closeDrawer;
+    document.getElementById("btn-new-fab").onclick = () => App.editor.create();
 
     // Wheel-to-page, everywhere but the Ribbon — which is one continuous
     // scroll by design and has no next period to move to. Attached to the
@@ -302,7 +323,8 @@ App.shell = (() => {
     App.status.start();
   }
 
-  return { init, show, setView, refresh, goTo, today, step, renderSidebar, setVisible, solo, applySet, VIEWS };
+  return { init, show, setView, refresh, goTo, today, step, renderSidebar, setVisible,
+           solo, applySet, closeDrawer, VIEWS };
 })();
 
 /* Agent health, in the one place it matters: a calendar that has quietly

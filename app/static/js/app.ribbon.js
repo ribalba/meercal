@@ -134,6 +134,17 @@ App.ribbon = (() => {
     events.forEach((e) => body.append(chip(e, today && e.endAt < now)));
     if (!events.length) body.append(App.el("div", { class: "rb-empty", text: "" }));
 
+    /* Clicking the empty part of a day starts an event on it, the way
+       double-clicking the grid does in the other views. A single click here
+       because a day row is a discrete target rather than a surface you drag
+       across — and only when the click landed on the row itself, so the chips
+       keep opening what they are. */
+    body.addEventListener("click", (ev) => {
+      if (ev.target !== body && !ev.target.classList.contains("rb-empty")) return;
+      App.editor.create(defaultTimeOn(date));
+    });
+    body.title = "Click to add something on this day";
+
     const gutter = App.el(
       "div",
       { class: "rb-gutter" + (today ? " today" : "") + (isWeekStart ? " week-start" : "") },
@@ -154,6 +165,19 @@ App.ribbon = (() => {
       gutter.append(App.el("div", { class: "rb-clash", text: "!", title: "Two calendars want this time" }));
     }
     return { gutter, body, isWeekStart };
+  }
+
+  /* What time a click on a day means. A day row has no hour axis, so: the next
+     half hour if it is today — which is nearly always what "add something now"
+     means — and nine in the morning otherwise. */
+  function defaultTimeOn(date) {
+    if (!T().isToday(date)) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0);
+    }
+    const now = new Date();
+    const half = now.getMinutes() < 30;
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+                    now.getHours() + (half ? 0 : 1), half ? 30 : 0);
   }
 
   function chip(e, past) {
@@ -350,8 +374,17 @@ App.ribbon = (() => {
      passed the top of the viewport. Everything sticky in the rail is labelled
      against it, which is what turns a long bar from "something is happening"
      into "you are on day 4 of 19". */
+  /* How much of the top of the scroller the sticky month header covers. Both
+     "which day am I looking at" and "scroll to this day" have to agree about
+     it, or `g 11` scrolls to November and the toolbar says October — the row
+     above the target is the one still touching the very top. */
+  function stickyClearance() {
+    const sticky = root.querySelector(".rb-month");
+    return (sticky ? sticky.offsetHeight : 0) + 10;
+  }
+
   function topDate() {
-    const y = root.scrollTop + 8;
+    const y = root.scrollTop + stickyClearance() + 2;
     let found = null;
     for (const r of rows) {
       if (r.kind !== "day" && r.kind !== "quiet") continue;
@@ -432,10 +465,8 @@ App.ribbon = (() => {
     const top = entry.node.offsetTop - (grid ? grid.offsetTop : 0);
     entry.top = top;
     // Clear the sticky month header as well: it sits at the top of the scroller
-    // and would otherwise cover the very row being scrolled to. Measured rather
-    // than assumed — it is one line of text whose height follows the font.
-    const sticky = root.querySelector(".rb-month");
-    const clearance = (sticky ? sticky.offsetHeight : 0) + 10;
+    // and would otherwise cover the very row being scrolled to.
+    const clearance = stickyClearance();
     // The scroll this causes is ours, not the reader's: it must not be read as
     // "they have reached the edge, slide the window", which is how one Today
     // used to turn into a run of slides and a view that would not settle.

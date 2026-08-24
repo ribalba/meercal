@@ -66,6 +66,18 @@ horizon_future_days = 1095
 # every request looks like it came from the proxy.
 trusted_proxies = []
 
+# Places you type over and over, offered as chips under the event panel's
+# "Where" field. The key is the label on the chip; the value is what goes into
+# the field, so it can be an address, a room, or a meeting link.
+#
+# In the order written here, which is the order they are offered in. Leave the
+# table out and the field is simply a text field.
+[server.places]
+# "Office" = "Ritterstr. 12, 10969 Berlin"
+# "Meet" = "https://meet.google.com/abc-defg-hij"
+# "Kita" = "Kita Sonnenschein, Reichenberger Str. 1"
+# "Home" = "Home"
+
 
 # --- meerail ------------------------------------------------------------------
 # The mail side of the suite. Optional, and read-only: meercal never writes to

@@ -6,8 +6,9 @@
   <title>meercal — a calendar for people who have too many calendars</title>
   <meta name="description" content="meercal is a self-hosted calendar client for technologists. The Ribbon view draws time as one continuous strip, so a three-week event is one bar instead of three. Apple Calendar, CalDAV and Google, many calendars at once, everything in PostgreSQL." />
   <meta name="theme-color" content="#1d6ff2" />
-  <link rel="icon" href="/img/logo-square.png" />
-  <link rel="apple-touch-icon" href="/img/logo-square.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/img/favicon-180.png" />
 
   <!-- Heavy stylesheet loaded non-render-blocking, as on the meerail site. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.css" media="print" onload="this.media='all'" />
@@ -191,6 +192,20 @@
               <code>is:free</code>. Turn on Regex and the pattern goes to
               Postgres as a POSIX regular expression over an indexed column.
               Enter searches every calendar — including the ones you have hidden.
+            </p>
+          </div>
+        </article>
+
+        <article class="landing-card">
+          <div class="landing-card-body">
+            <div class="landing-card-icon"><i class="map marker alternate icon"></i></div>
+            <h3>Places you keep typing</h3>
+            <p>
+              Half the locations in a calendar are the same handful — the
+              office, that room, the same meeting link. Put them in
+              <code>meercal.toml</code> as name-and-value pairs and they are
+              offered as chips under the event panel's <em>Where</em> field, in
+              the order you wrote them.
             </p>
           </div>
         </article>

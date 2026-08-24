@@ -66,6 +66,7 @@ _FIELD_MAP: dict[tuple[str, str], str] = {
     ("server", "horizon_past_days"): "horizon_past_days",
     ("server", "horizon_future_days"): "horizon_future_days",
     ("server", "trusted_proxies"): "trusted_proxies",
+    ("server", "places"): "places",
     ("meerail", "database_url"): "meerail_database_url",
     ("agent", "interval"): "agent_interval",
 }
@@ -171,6 +172,12 @@ class Settings(BaseSettings):
     horizon_past_days: int = 730
     horizon_future_days: int = 1095
     trusted_proxies: list[str] = []
+
+    # Where you keep going. name -> what goes in the field, offered as chips
+    # under the event panel's Where box. A dict rather than a list because the
+    # name is the label and the value is the text, and TOML keeps the order it
+    # was written in — which is the order they will be offered in.
+    places: dict[str, str] = {}
 
     # --- the rest of the suite ---
     meerail_database_url: str = ""

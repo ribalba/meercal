@@ -18,7 +18,10 @@ App.keys = (() => {
     { key: "y", label: "Year", run: () => App.shell.setView("year") },
     { key: "←/→", label: "Back / forward", match: (e) => e.key === "ArrowLeft" || e.key === "ArrowRight",
       run: (e) => App.shell.step(e.key === "ArrowLeft" ? -1 : 1) },
-    { key: "n", label: "New event", run: () => App.editor.create() },
+    // `c`, which is what every calendar binds it to; `n` keeps working for
+    // anyone who learned it here first.
+    { key: "c", label: "New event", match: (e) => e.key === "c" || e.key === "n",
+      run: () => App.editor.create() },
     { key: "/", label: "Filter", run: () => document.getElementById("filter-input").focus() },
     { key: "0–9", label: "Calendar set", match: (e) => /^[0-9]$/.test(e.key),
       run: (e) => {
@@ -49,10 +52,26 @@ App.keys = (() => {
   const SECOND_DIGIT = 650;    // how long a leading 1 waits for its partner
   let jump = null;             // { buffer, timer, armedAt }
 
+  /* What the sequence looks like while it is being typed. A mode with nothing
+     on screen is a mode that feels like the keyboard has stopped working —
+     especially this one, where the next keypress means something different
+     from usual. */
+  function paintHint(text) {
+    const hint = document.getElementById("key-hint");
+    if (!hint) return;
+    hint.hidden = !text;
+    if (text) hint.innerHTML = text;
+  }
+
   function cancelJump() {
     if (!jump) return;
     clearTimeout(jump.timer);
     jump = null;
+    paintHint("");
+  }
+
+  function monthName(month) {
+    return new Date(2000, month - 1, 1).toLocaleDateString(undefined, { month: "long" });
   }
 
   function goToMonth(month) {
@@ -64,20 +83,40 @@ App.keys = (() => {
     App.shell.goTo(target, App.state.view === "year" ? "month" : undefined);
   }
 
+  /* Jump, but leave the confirmation up long enough to be read. The move
+     itself is immediate; only the hint lingers. */
+  function goToMonthSoon(month) {
+    const target = new Date(App.state.cursor.getFullYear(), month - 1, 1);
+    App.shell.goTo(target, App.state.view === "year" ? "month" : undefined);
+    clearTimeout(jump.timer);
+    jump.timer = setTimeout(cancelJump, 700);
+  }
+
   function jumpKey(e) {
     if (!jump) {
       if (e.key !== "g") return false;
       jump = { buffer: "", timer: setTimeout(cancelJump, JUMP_WINDOW) };
+      paintHint('<kbd>g</kbd><span>Go to month — type <b>1</b>–<b>12</b></span>');
       return true;
     }
     if (!/^[0-9]$/.test(e.key)) { cancelJump(); return false; }
     clearTimeout(jump.timer);
     jump.buffer += e.key;
+    const month = Number(jump.buffer);
     if (jump.buffer === "1") {
+      // Ambiguous for a moment: 1, or the start of 10/11/12. Say so, rather
+      // than looking like nothing happened.
+      paintHint('<kbd>g 1</kbd><span>January — or keep typing for <b>10</b>, <b>11</b>, <b>12</b></span>');
       jump.timer = setTimeout(() => goToMonth(1), SECOND_DIGIT);
       return true;
     }
-    goToMonth(Number(jump.buffer));
+    if (month < 1 || month > 12) {
+      paintHint(`<kbd>g ${jump.buffer}</kbd><span>No such month</span>`);
+      jump.timer = setTimeout(cancelJump, 900);
+      return true;
+    }
+    paintHint(`<kbd>g ${jump.buffer}</kbd><span>${monthName(month)}</span>`);
+    goToMonthSoon(month);
     return true;
   }
 
@@ -90,6 +129,7 @@ App.keys = (() => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") {
       cancelJump();
+      App.shell.closeDrawer();
       App.editor.close();
       const filter = document.getElementById("filter-input");
       if (document.activeElement === filter) filter.blur();

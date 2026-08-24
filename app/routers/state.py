@@ -44,6 +44,8 @@ def state(db: Session = Depends(get_db)) -> dict:
             "future_days": settings.horizon_future_days,
         },
         "meerail": bool(settings.meerail_database_url),
+        # Configured in meercal.toml; the panel offers them under Where.
+        "places": [{"name": name, "value": value} for name, value in settings.places.items()],
         "accounts": [
             {
                 "id": a.id,

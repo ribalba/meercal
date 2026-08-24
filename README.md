@@ -142,14 +142,34 @@ open it the way it opens Gmail for meerail. Two ways in:
 | `y` | Year | Twelve months, under a band of every long event in the year |
 
 Other keys: `t` today · `←`/`→` back and forward · `g` then `1`–`12` jump to a month
-(a leading `1` waits a moment for its second digit, so `g 9` is instant and `g 12` works) ·
-`0`–`9` a calendar set (`0` means everything, with or without a set on it) · `/` filter ·
-`n` new event · `q` expand the quiet days · `.` sync now · `?` the rest. The cheat sheet in the sidebar is generated from the table
+(a leading `1` waits a moment for its second digit, so `g 9` is instant and `g 12` works; a
+hint at the foot of the window says what it is waiting for) · `0`–`9` a calendar set (`0`
+means everything, with or without a set on it) · `c` new event · `/` filter · `q` expand the
+quiet days · `.` sync now · `?` the rest.
+
+Clicking an empty day in the Ribbon starts an event on it, the way double-clicking the grid
+does in the other views. The cheat sheet in the sidebar is generated from the table
 that binds them, so it cannot drift.
 
 The **mouse wheel pages** in every view but the Ribbon — which is one continuous scroll and
 has nowhere to page to. In the week and day grids it scrolls the hours first and only changes
 the date once it runs out of them, so neither gesture costs the other.
+
+### Places you keep typing
+
+Half the locations in a calendar are the same handful — the office, that room, the same
+meeting link. Put them in `meercal.toml` and they are offered as chips under the event
+panel's **Where** field:
+
+```toml
+[server.places]
+"Office" = "Ritterstr. 12, 10969 Berlin"
+"Meet" = "https://meet.example.com/abc-defg"
+"Kita" = "Kita Sonnenschein, Reichenberger Str. 1"
+```
+
+The key is the label on the chip, the value is what goes into the field; they are offered in
+the order written. Clicking the chip that is already in the field clears it again.
 
 ### Sets
 
@@ -199,6 +219,14 @@ Set `[meerail] database_url` to your [meerail](https://github.com/ribalba/meerai
 and the attendee field autocompletes from the people you actually correspond with — meerail
 builds that address book from every message it holds, ranked by how often. It is read-only:
 meercal never writes to your mail.
+
+## On a phone
+
+The same app, laid out for the width: the sidebar becomes a drawer behind the ☰ button, the
+view switch gets a row of its own rather than falling off the end of the toolbar, and Create
+is a floating button. The Ribbon is the view that gains most from a narrow screen — it is a
+single column by nature — and the week grid scrolls sideways rather than squeezing seven
+columns into forty pixels each.
 
 ## Architecture
 

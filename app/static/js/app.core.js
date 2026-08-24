@@ -168,6 +168,7 @@ App.load = {
       timezone: s.timezone,
       version: s.version,
       meerail: s.meerail,
+      places: s.places || [],
     });
     App.state.prefs = Object.assign(App.state.prefs, s.prefs || {});
     if (!App.state.ready) App.state.view = App.state.prefs.view || s.default_view;
@@ -311,6 +312,8 @@ App.icons = {
   right: '<polyline points="9.5 5 16 12 9.5 19"/>',
   pencil: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><line x1="14.5" y1="7.5" x2="17.5" y2="10.5"/>',
   solo: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+  menu: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/>'
+      + '<line x1="4" y1="17" x2="20" y2="17"/>',
 };
 
 App.icon = (name, size = 17) => {
