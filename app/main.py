@@ -23,7 +23,7 @@ from .limits import BodySizeLimitMiddleware
 from .routers import (
     auth, calendars, contacts, events, imports, reminders, search, state, sync, version,
 )
-from .security import require_auth
+from .security import PLAINTEXT_REFUSAL, is_secure_request, require_secure
 
 settings = get_settings()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -69,7 +69,10 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
-def index(_: None = Depends(require_auth)) -> FileResponse:
+def index(_: None = Depends(require_secure)) -> FileResponse:
+    # The connection is checked, the session is not: the shell holds no
+    # calendar and its whole job on a password-protected install is to put the
+    # login form on screen. See app/security.py.
     return FileResponse(STATIC_DIR / "index.html")
 
 
@@ -79,4 +82,9 @@ async def not_found(request: Request, _exc) -> JSONResponse | FileResponse:
     # a deep link into the single-page app and gets the app.
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": "Not found"}, status_code=404)
+    # A deep link is the same shell by another name, and it is refused over
+    # plaintext for the same reason. An exception handler cannot raise its way
+    # out, so the refusal is written rather than thrown.
+    if settings.server_password and not is_secure_request(request):
+        return JSONResponse({"detail": PLAINTEXT_REFUSAL}, status_code=403)
     return FileResponse(STATIC_DIR / "index.html")

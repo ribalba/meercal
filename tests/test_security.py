@@ -109,3 +109,58 @@ def test_https_needs_no_proxy_at_all(gated):
     # TLS ended here, or the middleware in app/main.py already rewrote the
     # scheme from a header it was configured to believe.
     assert security.is_secure_request(request_from("203.0.113.9", scheme="https"))
+
+
+# --- the front door --------------------------------------------------------
+#
+# The shell has to reach the browser for the login overlay inside it to have
+# anywhere to appear. What it is refused for is the connection, never the
+# session: a 401 in front of the page is JSON, and the only thing that knows
+# what to do with a 401 is the page being refused.
+
+from starlette.testclient import TestClient  # noqa: E402
+
+
+def client(scheme: str = "http") -> TestClient:
+    # No context manager: entering one runs the lifespan, which opens the
+    # database, and nothing here gets as far as a query.
+    from app.main import app
+
+    return TestClient(app, base_url=f"{scheme}://cal.example.com", client=("10.0.1.7", 44444))
+
+
+def test_the_shell_is_served_over_https(gated):
+    r = client("https").get("/")
+    assert r.status_code == 200
+    assert 'id="login-overlay"' in r.text
+
+
+def test_the_shell_is_refused_over_plaintext(gated):
+    r = client().get("/")
+    assert r.status_code == 403
+    assert "trusted_proxies" in r.json()["detail"]
+
+
+def test_a_trusted_proxy_opens_the_front_door(gated, monkeypatch):
+    monkeypatch.setattr(security.settings, "trusted_proxies", ["10.0.0.0/8"])
+    r = client().get("/", headers={"x-forwarded-proto": "https"})
+    assert r.status_code == 200
+
+
+def test_a_deep_link_is_the_shell_and_is_refused_the_same_way(gated):
+    # Everything that is not /api is a route in the single-page app, so it gets
+    # the same page and the same rule about how it may travel.
+    assert client("https").get("/week").status_code == 200
+    assert client().get("/week").status_code == 403
+
+
+def test_the_calendar_itself_still_needs_the_session(gated):
+    # The point of the split: the page is public, the data is not.
+    assert client("https").get("/api/version").status_code == 401
+
+
+def test_without_a_password_nothing_is_refused(monkeypatch):
+    monkeypatch.setattr(security.settings, "server_password", "")
+    monkeypatch.setattr(security.settings, "trusted_proxies", [])
+    assert client().get("/").status_code == 200
+    assert client().get("/api/version").status_code == 200

@@ -28,6 +28,14 @@ from core.config import get_settings
 
 settings = get_settings()
 
+# Said by everything that refuses a plaintext connection, so that the answer to
+# "why is my reverse proxy getting a 403" is in one place.
+PLAINTEXT_REFUSAL = (
+    "meercal is password-protected, so it refuses to answer over plain HTTP. "
+    "Use https, or reach it on loopback. If TLS ends at a reverse proxy in "
+    "front of this, that proxy has to be named in server.trusted_proxies."
+)
+
 COOKIE = "meercal_session"
 # A month. Long, because the alternative to a long session on a personal
 # calendar is a password typed so often it ends up in a password manager's
@@ -115,6 +123,27 @@ def is_secure_request(request: Request) -> bool:
     return forwarded.split(",")[0].strip() == "https" and trusts_proxy(host)
 
 
+def require_secure(request: Request) -> None:
+    """The transport half of the gate, without the session half.
+
+    What the app shell is allowed to do before anyone has signed in. It carries
+    nothing private -- it is markup, script and stylesheet, the same bytes
+    /static serves to anyone, and every byte of the calendar arrives later
+    through /api, behind `require_auth`. What it must still not do is arrive
+    over plaintext: the shell *is* the login form, and a login form that
+    renders is a password about to be typed into the wire.
+
+    So the front door checks the connection and leaves the session to the API.
+    Gating it on the session too is a locked door with the key inside: the 401
+    is JSON, the page that knows what to do with a 401 is the page being
+    refused, and the browser shows the JSON.
+    """
+    if not settings.server_password:
+        return
+    if not is_secure_request(request):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, PLAINTEXT_REFUSAL)
+
+
 def require_auth(
     request: Request,
     session: str | None = Cookie(default=None, alias=COOKIE),
@@ -123,13 +152,7 @@ def require_auth(
     """FastAPI dependency: a no-op unless a password is configured."""
     if not settings.server_password:
         return
-    if not is_secure_request(request):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            "meercal is password-protected, so it refuses to answer over plain HTTP. "
-            "Use https, or reach it on loopback. If TLS ends at a reverse proxy in "
-            "front of this, that proxy has to be named in server.trusted_proxies.",
-        )
+    require_secure(request)
     if session and token_valid(session):
         return
     if authorization and authorization.lower().startswith("bearer "):
