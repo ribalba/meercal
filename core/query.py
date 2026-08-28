@@ -20,7 +20,6 @@ the filter bar instead of a second, worse one invented for the purpose.
 
 from __future__ import annotations
 
-import re
 import shlex
 from dataclasses import dataclass, field
 from datetime import datetime

@@ -25,7 +25,7 @@ from core.config import get_settings
 from core.database import get_db
 from core.expand import horizon, rebuild_series
 from core.models import Account, Calendar, Event, Occurrence, PendingAction
-from core.timeutil import UTC, days_touched
+from core.timeutil import UTC
 from ..query import occurrences_in_range, parse_query
 from ..serialize import TZ, occurrence_json, own_addresses
 from ..security import require_auth

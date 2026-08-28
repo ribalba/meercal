@@ -19,6 +19,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from core.config import get_settings
 from core.database import init_db
 from core.version import VERSION
+from .limits import BodySizeLimitMiddleware
 from .routers import (
     auth, calendars, contacts, events, imports, reminders, search, state, sync, version,
 )
@@ -44,6 +45,12 @@ app = FastAPI(
 
 if settings.trusted_proxies:
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_proxies)
+
+# Ahead of the router, because the body of an upload is parsed to resolve
+# `UploadFile` before any dependency runs -- the password gate included. The
+# headroom over the import cap is the multipart framing and the form fields
+# that travel beside the file.
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=imports.MAX_BYTES + 1024 * 1024)
 
 for module in (auth, version, state, calendars, events, search, contacts, sync, reminders, imports):
     app.include_router(module.router)

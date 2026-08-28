@@ -35,10 +35,8 @@ from core.reminders import (
     ON,
     PENDING,
     SENT,
-    SNOOZED,
     channel_state,
     fire_at,
-    leads_for,
     occurrence_key,
     overrides_for,
 )

@@ -77,6 +77,12 @@ services:
     # cannot read it. meercal.sh writes these ids into .env; `make hub-up`
     # passes the current user's. Running as root instead would read it, and is
     # what the sibling projects do, but there is nothing in here that needs to.
+    #
+    # The agent is stricter than the server: it exits rather than sync from a
+    # config other users can read, and `restart: unless-stopped` then makes
+    # that a loop. On a platform that writes the file itself, root-owned and
+    # 0644, and rewrites it on every deploy, either mount a path it does not
+    # manage or set MEERCAL_INSECURE_CONFIG=1; see .env.example.
     user: "${MEERCAL_UID:-10001}:${MEERCAL_GID:-10001}"
     depends_on:
       db:

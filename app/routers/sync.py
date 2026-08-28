@@ -6,8 +6,6 @@ tick, which is a second or two away, not a request that blocks on a network the
 server has no access to.
 """
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session

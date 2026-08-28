@@ -7,7 +7,6 @@ how a calendar ends up not syncing with nothing in the log to say why.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest

@@ -29,11 +29,9 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
-from core.config import get_settings
 from core.database import SessionLocal, init_db
 from core.reminders import (
     CAPPED,
-    CLAIMED,
     FAILED,
     MAX_ATTEMPTS,
     MISSED,

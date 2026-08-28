@@ -110,6 +110,32 @@ calendar passwords still stay put: they are in `~/.meercal/meercal.toml`, mode 0
 read-only into the two containers that read it, which is also why those containers run as
 you rather than as root.
 
+### On a platform that writes the file for you
+
+The agent does not merely prefer mode 0600, it refuses to sync without it, and with
+`restart: unless-stopped` in front of it that refusal is a loop:
+
+```
+meercal: /app/meercal.toml is readable by other users and holds passwords.
+```
+
+Coolify, Dokku and a Kubernetes config map all write their file mounts root-owned and 0644,
+and write them again on every deploy, so a `chmod 600` on the host holds until the next one.
+The durable fix is to mount a path the platform does not manage, made once by hand and owned
+by the uid the container runs as:
+
+```bash
+install -D -m 600 -o 10001 -g 10001 meercal.toml /data/meercal/meercal.toml
+#   then, in the compose:  - /data/meercal/meercal.toml:/app/meercal.toml:ro
+```
+
+Create it before the first deploy: Docker makes a *directory* at a bind mount whose source
+does not exist, and the agent then finds no configuration at all. If you would rather leave
+the file where the platform put it, `MEERCAL_INSECURE_CONFIG=1` turns the refusal into one
+warning line at startup. That is a statement about the host — every user on it can read your
+calendar passwords — which is a fair trade on a VPS whose only other user is root, and no
+trade at all on a machine other people have accounts on.
+
 ## Install: from a checkout
 
 ```bash

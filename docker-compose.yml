@@ -100,7 +100,8 @@ services:
     # The agent is stricter than the server about it: it exits rather than run
     # on a config other users can read, so the file has to be mode 0600 and
     # MEERCAL_UID has to be yours. `make up` and meercal.sh pass them; a bare
-    # `docker compose up` takes them from .env.
+    # `docker compose up` takes them from .env. MEERCAL_INSECURE_CONFIG=1 is
+    # the way out where the mode is not yours to set; see .env.example.
     user: "${MEERCAL_UID:-10001}:${MEERCAL_GID:-10001}"
     depends_on:
       db:

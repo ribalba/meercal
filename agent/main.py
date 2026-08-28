@@ -29,9 +29,6 @@ import stat
 import sys
 import threading
 import time
-from datetime import datetime
-
-from sqlalchemy import select
 
 from core.config import config_path, get_settings
 from core.database import SessionLocal, init_db
@@ -43,22 +40,51 @@ from .log import log
 from .sync import drain_queue, sync_account, _client
 
 
+# What counts as "yes" in an environment variable. A PaaS control panel is a
+# text box, and someone who types "true" into it means what someone who types
+# "1" means; the alternative is a variable that looks set and quietly is not.
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
 def check_config_permissions() -> None:
     """Refuse to run on a world-readable configuration file.
 
     It holds calendar passwords in plaintext. This is the one check worth
     failing on rather than warning about: a warning printed at three in the
     morning by a service nobody is watching protects nobody.
+
+    ``MEERCAL_INSECURE_CONFIG=1`` demotes it to exactly that warning, for the
+    deployment where the file's mode is not the operator's to set: a PaaS that
+    writes its own file mounts root-owned and 0644 and rewrites them on every
+    deploy (Coolify does), or a config map projected read-only into a pod. A
+    ``chmod`` there lasts until the next redeploy, and what it buys in the
+    meantime is an agent that restart-loops on this message instead of a
+    calendar that syncs. Setting it is a claim about the host: every user on
+    that machine can read the calendar passwords. On a single-purpose VPS where
+    that set is root, that is a fair trade. On a machine other people have
+    accounts on it is not, and the answer there is a path the PaaS does not
+    manage, owned by the uid the container runs as, at mode 0600.
     """
     path = config_path()
     if path is None or not path.is_file():
         return
     mode = path.stat().st_mode
-    if mode & (stat.S_IRGRP | stat.S_IROTH):
-        raise SystemExit(
-            f"meercal: {path} is readable by other users and holds passwords.\n"
-            f"  chmod 600 {path}"
+    if not mode & (stat.S_IRGRP | stat.S_IROTH):
+        return
+    if os.environ.get("MEERCAL_INSECURE_CONFIG", "").strip().lower() in _TRUTHY:
+        # Once per process, at startup, and never again: the person who set the
+        # variable knows, and a line per sync pass would only teach them to
+        # stop reading the log.
+        log(
+            f"{path} is readable by other users and holds passwords; "
+            f"continuing because MEERCAL_INSECURE_CONFIG is set"
         )
+        return
+    raise SystemExit(
+        f"meercal: {path} is readable by other users and holds passwords.\n"
+        f"  chmod 600 {path}\n"
+        f"  (or MEERCAL_INSECURE_CONFIG=1, if the mode is not yours to set)"
+    )
 
 
 def test_connections(settings) -> int:
