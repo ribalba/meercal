@@ -136,6 +136,24 @@ warning line at startup. That is a statement about the host — every user on it
 calendar passwords — which is a fair trade on a VPS whose only other user is root, and no
 trade at all on a machine other people have accounts on.
 
+The other thing such a platform rewrites is the network. The compose files give meercal's
+Postgres the network alias `meercal-db`, so that a server attached to meerail's network as
+well cannot mistake one stack's database for the other's. An alias belongs to a network, and
+a platform that attaches every service to a network of its own writes it out again without
+one — at which point the name resolves nowhere and the server exits before it serves a
+request:
+
+```
+meercal: database not reachable at 'postgresql+psycopg://meercal:...@meercal-db:5432/meercal':
+  failed to resolve host 'meercal-db': [Errno -3] Temporary failure in name resolution
+```
+
+Nothing in the deployed files depends on that alias any more: both `DATABASE_URL`s address
+the database as `db`, the service name, which is the one name every platform keeps. If you
+are carrying an older copy of a compose file, change `@meercal-db:5432` to `@db:5432` in
+both of them. The alias survives for the one caller that needs it, in
+`docker-compose.meerail.yml`, where `db` really is ambiguous.
+
 ## Install: from a checkout
 
 ```bash

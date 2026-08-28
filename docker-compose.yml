@@ -21,13 +21,20 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-meercal}
     networks:
       meercal:
-        # "db" is what compose calls this on its own network, and it is also
-        # what meerail calls *its* Postgres on meerail's. A server attached to
-        # both (see docker-compose.meerail.yml) asks Docker's resolver for "db"
-        # and gets whichever answers -- in practice meerail's, at which point
-        # meercal is reading its calendars out of a mail database. So the two
-        # halves of the suite address each other by names that are unique
-        # across it, and nothing here depends on "db" resolving to anything.
+        # A second name for this container, for one caller: the server when it
+        # is also on meerail's network. "db" is what compose calls this here,
+        # and what meerail calls *its* Postgres there, so a container on both
+        # asks Docker's resolver for "db" and gets whichever answers -- in
+        # practice meerail's, at which point meercal reads its calendars out of
+        # a mail database. docker-compose.meerail.yml is where that override
+        # lives, and it is the only place this alias is used.
+        #
+        # Everything below addresses this as plain "db", the service name.
+        # An alias is a property of a network, and a PaaS that deploys this
+        # file (Coolify, and it is not alone) attaches every service to a
+        # network of its own making, dropping what was written here: the alias
+        # then resolves nowhere and the server exits at startup saying so. The
+        # service name is the one name every one of them keeps.
         aliases: [meercal-db]
     ports:
       # On the host's loopback so the agent, which runs natively beside your
@@ -65,7 +72,7 @@ services:
       # Container topology only. Everything else comes from meercal.toml, which
       # is why nothing here sets a value it does not mean. An entry with a
       # ${VAR:-default} fallback is always set, and would override the file.
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@meercal-db:5432/${POSTGRES_DB:-meercal}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
       # Which zone the calendar is drawn in, when meercal.toml says "system".
       # Topology in the same sense as the line above: a container's own system
       # zone is UTC, and "system" without this means "UTC", not "yours" -- every
@@ -110,7 +117,7 @@ services:
       # As on the server: topology only. The url in meercal.toml is the one for
       # an agent run from the host, and points at the published port; this
       # overrides it with the address the compose network uses.
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@meercal-db:5432/${POSTGRES_DB:-meercal}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
       # The agent needs it for the same reason the server does, and for one of
       # its own: a reminder says what time the meeting is at.
       TZ: ${TZ:-}

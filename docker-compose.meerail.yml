@@ -36,10 +36,19 @@
 # the two SELECTs in app/routers/contacts.py against it.
 services:
   server:
+    environment:
+      # The one place in the suite where `db` is not enough. The base file
+      # points the server at its own stack's `db`, which is unambiguous there
+      # and, being a service name rather than a network alias, survives a
+      # platform that rewrites the file onto a network of its own. On this
+      # second network the name stops being unambiguous: meerail's Postgres
+      # answers to `db` too, the resolver returns whichever it likes, and the
+      # calendar comes up empty because the server is reading a mail database.
+      # So here, and only here, the server addresses meercal's Postgres by the
+      # alias the base file gives it.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@meercal-db:5432/${POSTGRES_DB:-meercal}
     networks:
-      # Its own stack, unchanged, plus meerail's. The base file gives meercal's
-      # Postgres the alias `meercal-db` precisely so that this second network
-      # cannot make the bare name `db` ambiguous -- both stacks have one.
+      # Its own stack, unchanged, plus meerail's.
       meercal:
       meerail:
 
