@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import ipaddress
 import secrets
 import time
 
@@ -68,6 +69,35 @@ def password_ok(given: str) -> bool:
     )
 
 
+def trusts_proxy(host: str) -> bool:
+    """Is `host` one of ``server.trusted_proxies``?
+
+    The same three forms uvicorn's ProxyHeadersMiddleware accepts, because the
+    two read the same setting and a disagreement between them is a deployment
+    that is half-trusted in a way nobody can see: a literal address, a CIDR
+    range, or ``*`` for any peer that can reach the port. Behind a PaaS the
+    range is usually the only form that stays true -- the proxy's address is
+    Docker's to assign, and it changes when the container is recreated.
+    """
+    proxies = settings.trusted_proxies
+    if not host or not proxies:
+        return False
+    if "*" in proxies or host in proxies:
+        return True
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False  # a name, and the literal match above was its only chance
+    for entry in proxies:
+        try:
+            network = ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            continue
+        if addr in network:
+            return True
+    return False
+
+
 def is_secure_request(request: Request) -> bool:
     """Would this request's password stay off the wire?"""
     host = request.client.host if request.client else ""
@@ -75,8 +105,14 @@ def is_secure_request(request: Request) -> bool:
         return True
     if request.url.scheme == "https":
         return True
+    # Where TLS ended at a proxy, the scheme above is already "https": the
+    # middleware in app/main.py rewrote it from this header, and it is added
+    # exactly when there are trusted proxies to rewrite for. What is left for
+    # this line is the chain -- two proxies deep the header reads
+    # "https,https", which that middleware does not recognise as a scheme and
+    # therefore ignores.
     forwarded = request.headers.get("x-forwarded-proto", "")
-    return forwarded.split(",")[0].strip() == "https" and host in set(settings.trusted_proxies)
+    return forwarded.split(",")[0].strip() == "https" and trusts_proxy(host)
 
 
 def require_auth(
@@ -91,7 +127,8 @@ def require_auth(
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             "meercal is password-protected, so it refuses to answer over plain HTTP. "
-            "Use https, or reach it on loopback.",
+            "Use https, or reach it on loopback. If TLS ends at a reverse proxy in "
+            "front of this, that proxy has to be named in server.trusted_proxies.",
         )
     if session and token_valid(session):
         return

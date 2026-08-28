@@ -76,8 +76,25 @@ default_view = "ribbon"
 horizon_past_days = 730
 horizon_future_days = 1095
 
-# Trusted reverse proxies, if TLS is terminated in front of this. Without it
-# every request looks like it came from the proxy.
+# The reverse proxies in front of this, if there are any. Two things follow
+# from it: a request is logged and rate-limited as the browser that made it
+# rather than as the proxy, and `X-Forwarded-Proto: https` is believed. The
+# second is why an install behind a proxy that sets `password` and leaves this
+# empty is answered with a 403 and nothing else -- from in here TLS ended
+# somewhere the server cannot see, and every request arrives as plain HTTP.
+#
+# An entry is a literal address, a CIDR range, or "*" for any peer that can
+# reach the port. Behind a PaaS the range is the form that keeps working: the
+# proxy's address belongs to Docker and changes when its container is
+# recreated. Coolify's proxy, for one, is somewhere in:
+#
+#   trusted_proxies = ["10.0.0.0/8", "172.16.0.0/12"]
+#
+# "*" says the port itself is the boundary -- true where nothing but the proxy
+# can route to it, which is the normal shape of a container behind a PaaS, and
+# false the moment the port is published to a network with anything else on it.
+# As an environment variable this is JSON, not a bare string:
+# TRUSTED_PROXIES=["10.0.0.0/8"].
 trusted_proxies = []
 
 # Once a day, ask github whether a newer meercal is out, and show a quiet strip

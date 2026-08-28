@@ -154,6 +154,29 @@ are carrying an older copy of a compose file, change `@meercal-db:5432` to `@db:
 both of them. The alias survives for the one caller that needs it, in
 `docker-compose.meerail.yml`, where `db` really is ambiguous.
 
+The third thing to set is `trusted_proxies`, and its symptom is a page that loads nothing
+and one line of JSON:
+
+```
+meercal is password-protected, so it refuses to answer over plain HTTP.
+```
+
+TLS ends at the platform's proxy, so what arrives here is a plain HTTP request from a
+container down the road, and a password gate that answered it would be handing out the login
+form over cleartext. Naming the proxy is what makes `X-Forwarded-Proto: https` a fact rather
+than a claim from whoever can reach the port:
+
+```toml
+[server]
+trusted_proxies = ["10.0.0.0/8", "172.16.0.0/12"]   # where Coolify's proxy lives
+```
+
+A literal address works too, and `"*"` says the port itself is the boundary — fair for a
+container nothing but the proxy can route to, and wrong the moment that stops being true. A
+range rather than an address because the proxy's address is Docker's to assign and changes
+when its container is recreated. As an environment variable the value is JSON:
+`TRUSTED_PROXIES=["10.0.0.0/8"]`.
+
 ## Install: from a checkout
 
 ```bash
