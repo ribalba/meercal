@@ -1,6 +1,6 @@
 # meercal-server. The agent is not in here: it runs on your machine, next to
 # the credentials, and this image has no code path that needs them.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ARG MEERCAL_VERSION=0.0.0
 
