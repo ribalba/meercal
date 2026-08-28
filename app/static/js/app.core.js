@@ -28,6 +28,24 @@ App.api = {
       await this.promptLogin();
       return this.request(method, path, body);
     }
+    return this.unwrap(response);
+  },
+
+  /* A multipart POST: an .ics dropped on the window, which is the one thing
+     here that is a file rather than JSON. Separate from `request` because the
+     body must reach fetch as a FormData -- setting Content-Type by hand loses
+     the boundary -- and shared with it from `unwrap` down, so an upload that
+     lands mid-expiry gets the same login prompt every other call does. */
+  async form(path, data) {
+    const response = await fetch(path, { method: "POST", body: data });
+    if (response.status === 401) {
+      await this.promptLogin();
+      return this.form(path, data);
+    }
+    return this.unwrap(response);
+  },
+
+  async unwrap(response) {
     if (!response.ok) {
       let detail = response.statusText;
       try { detail = (await response.json()).detail || detail; } catch (e) { /* not JSON */ }
@@ -35,6 +53,7 @@ App.api = {
     }
     return response.status === 204 ? null : response.json();
   },
+
   get(path) { return this.request("GET", path); },
   post(path, body) { return this.request("POST", path, body); },
   patch(path, body) { return this.request("PATCH", path, body); },
@@ -131,6 +150,7 @@ App.time = {
     return d.toLocaleDateString(undefined, { weekday: long ? "long" : "short" });
   },
   monthName(d) { return d.toLocaleDateString(undefined, { month: "long", year: "numeric" }); },
+  monthShort(d) { return d.toLocaleDateString(undefined, { month: "short" }); },
 };
 
 // --- shared state ----------------------------------------------------------
@@ -169,6 +189,7 @@ App.load = {
       version: s.version,
       meerail: s.meerail,
       places: s.places || [],
+      calendarColors: s.calendar_colors || [],
     });
     App.state.prefs = Object.assign(App.state.prefs, s.prefs || {});
     if (!App.state.ready) App.state.view = App.state.prefs.view || s.default_view;
@@ -231,6 +252,20 @@ App.tint = (hex, alpha) => {
 };
 
 
+/* The month's number, in a bubble, to set beside the month's name.
+
+   The number is not decoration: it is what `g 1`-`g 12` takes. The year view
+   had this first, because twelve months at once is where that key is most
+   obviously useful -- but every view names a month somewhere, and the same
+   bubble in all of them means the key is legible from wherever you are rather
+   than only from the one view. `cls` is a caller's own business on top of it,
+   which in practice is the smaller size the week grid's labels have room for. */
+App.monthNo = (date, cls = "") => App.el("span", {
+  class: "month-no" + (cls ? ` ${cls}` : ""),
+  text: String(date.getMonth() + 1),
+});
+
+
 /* The mouse wheel, as a way of moving through time.
 
    In the grid views there is nothing below the fold worth a wheel of its own
@@ -249,6 +284,24 @@ App.wheel = {
   THRESHOLD: 80,
   COOLDOWN: 420,
 
+  /* How long the wheel is ignored after the view was moved by something that
+     is not the wheel.
+
+     A trackpad goes on sending deltas after the fingers have left it, and
+     those arrive when the flick, as far as the reader is concerned, is over.
+     Press `t` in that tail and the momentum of a gesture that had already
+     ended stepped straight back off today -- so `t` read as a key that does
+     nothing, and the month it left you on was the one *past* the one you
+     asked for. Long enough to outlast a dying flick, short enough that a
+     deliberate wheel right after a keypress still lands. */
+  SETTLE: 700,
+
+  /* Forget whatever the wheel had accumulated, and ignore it for a moment.
+     Called by every other way of moving through time; see App.shell.goTo. A
+     no-op before `attach` has run, which is only ever the case at boot. */
+  _settle: null,
+  silence() { if (this._settle) this._settle(); },
+
   /* Attach once, for the life of the page. The accumulator and the cooldown
      live in the closure, and a step re-renders the view, so re-attaching per
      render handed every wheel event a fresh cooldown of zero, and one flick
@@ -256,6 +309,11 @@ App.wheel = {
   attach(el, onStep) {
     let acc = 0;
     let until = 0;
+    // Zeroing the accumulator is half of it: the guard below returns *before*
+    // adding to it, so nothing piles up during the silence either, and a tail
+    // whose deltas have decayed to single figures never reaches the threshold
+    // again on its own.
+    this._settle = () => { acc = 0; until = performance.now() + this.SETTLE; };
     el.onwheel = (e) => {
       if (e.ctrlKey || e.metaKey) return;                 // pinch-zoom
       const dir = Math.sign(e.deltaY);
@@ -307,8 +365,10 @@ App.icons = {
   info: '<circle cx="12" cy="12" r="8.5"/><line x1="12" y1="11" x2="12" y2="16.5"/>'
       + '<circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/>',
   close: '<line x1="6.5" y1="6.5" x2="17.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="6.5" y2="17.5"/>',
+  check: '<polyline points="5 12.4 9.8 17.5 19 6.8"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   left: '<polyline points="14.5 5 8 12 14.5 19"/>',
+  chevron: '<polyline points="6 9.5 12 15.5 18 9.5"/>',
   right: '<polyline points="9.5 5 16 12 9.5 19"/>',
   pencil: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><line x1="14.5" y1="7.5" x2="17.5" y2="10.5"/>',
   solo: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
@@ -318,6 +378,10 @@ App.icons = {
       + '<line x1="4" y1="17" x2="20" y2="17"/>',
   download: '<path d="M12 3.5v11"/><polyline points="7.5 10 12 14.5 16.5 10"/>'
           + '<path d="M4.5 17.5v2a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-2"/>',
+  // Head and shoulders, and nothing else inside them. Every other icon here is
+  // a button seventeen pixels across; this one is eleven and sits beside a
+  // title, where a face or a second figure would come out as a smudge.
+  person: '<circle cx="12" cy="8" r="3.6"/><path d="M4.8 20.2a7.2 7.2 0 0 1 14.4 0"/>',
 };
 
 App.icon = (name, size = 17) => {
@@ -327,6 +391,42 @@ App.icon = (name, size = 17) => {
     stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
     stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 };
+
+/* Is anyone else on this event? The server has already decided (see
+   `with_people` in app/serialize.py -- the question turns on which addresses
+   are the reader's own, which is knowledge the browser does not have). This is
+   only the drawing of it, kept in one place so that the mark means the same
+   thing in the Ribbon, the week grid, the month and the year. */
+App.guests = {
+  on: (e) => Boolean(e && e.with_people),
+
+  count: (e) => (e && e.guest_count) || 0,
+
+  /* What the mark says when you rest on it. The organiser is named only when
+     it is an address: CalDAV servers happily give it as a principal URL, and
+     "organised by /aNDE0.../principal/" tells nobody anything. */
+  note(e) {
+    const n = App.guests.count(e);
+    const who = n === 1 ? "1 guest" : `${n} guests`;
+    const by = (e.organizer || "").includes("@") ? `organised by ${e.organizer}` : "";
+    if (!n) return by || "Somebody else is on this";
+    return by ? `${who} \u00b7 ${by}` : who;
+  },
+
+  /* The icon, or nothing at all. Every mark carries `guest-mark`, which is
+     where it gets its ink and its alignment; `cls` is the one view's own
+     business on top of that (a corner in the week grid, a place in the
+     Ribbon's vertical labels). */
+  mark(e, cls = "", size = 11) {
+    if (!App.guests.on(e)) return null;
+    return App.el("span", {
+      class: "guest-mark" + (cls ? ` ${cls}` : ""),
+      html: App.icon("person", size),
+      title: App.guests.note(e),
+    });
+  },
+};
+
 
 /* Fill everything carrying `data-icon`. Called once at boot, and again by
    anything that builds buttons of its own after it. */

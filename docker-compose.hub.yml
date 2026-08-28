@@ -18,7 +18,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-meercal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meercal}
       POSTGRES_DB: ${POSTGRES_DB:-meercal}
-    networks: [meercal]
+    networks:
+      meercal:
+        # Unique across the suite: meerail's Postgres is also called
+        # "db" on its own network, and a server attached to both (see
+        # docker-compose.meerail.yml) would resolve the bare name to
+        # whichever answered first. See docker-compose.yml.
+        aliases: [meercal-db]
     ports:
       # Loopback only, and only so that `meercal.sh psql`, a backup, or an agent
       # run from a checkout can reach it. Drop the 127.0.0.1 and Docker
@@ -54,10 +60,11 @@ services:
       # is why nothing here sets a value it does not mean: an `environment:`
       # entry with a ${VAR:-default} fallback is *always* set, and the
       # environment beats the file.
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@meercal-db:5432/${POSTGRES_DB:-meercal}
     volumes:
       - ./meercal.toml:/app/meercal.toml:ro
-    networks: [meercal]
+    networks:
+      meercal:
     ports:
       - "${MEERCAL_BIND:-127.0.0.1}:${MEERCAL_PORT:-8010}:8000"
     restart: unless-stopped
@@ -75,10 +82,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@db:5432/${POSTGRES_DB:-meercal}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meercal}:${POSTGRES_PASSWORD:-meercal}@meercal-db:5432/${POSTGRES_DB:-meercal}
     volumes:
       - ./meercal.toml:/app/meercal.toml:ro
-    networks: [meercal]
+    networks:
+      meercal:
     restart: unless-stopped
 
 networks:

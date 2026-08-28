@@ -27,7 +27,7 @@ from core.expand import horizon, rebuild_series
 from core.models import Account, Calendar, Event, Occurrence, PendingAction
 from core.timeutil import UTC, days_touched
 from ..query import occurrences_in_range, parse_query
-from ..serialize import TZ, occurrence_json
+from ..serialize import TZ, occurrence_json, own_addresses
 from ..security import require_auth
 
 router = APIRouter(prefix="/api", tags=["events"], dependencies=[Depends(require_auth)])
@@ -80,11 +80,12 @@ def list_events(
         include_hidden=hidden,
     )
     calendars = {c.id: c for c in db.execute(select(Calendar)).scalars().all()}
+    mine = own_addresses(db)
     return {
         "start": start_wall.isoformat(timespec="seconds"),
         "end": end_wall.isoformat(timespec="seconds"),
         "tz": str(TZ),
-        "events": [occurrence_json(o, calendars.get(o.calendar_id)) for o in rows],
+        "events": [occurrence_json(o, calendars.get(o.calendar_id), mine) for o in rows],
     }
 
 
@@ -97,7 +98,7 @@ def get_event(event_id: int, db: Session = Depends(get_db)) -> dict:
     occ = db.execute(
         select(Occurrence).where(Occurrence.event_id == event.id).order_by(Occurrence.start_utc)
     ).scalars().first()
-    payload = occurrence_json(occ, cal) if occ else {"id": None, "event_id": event.id}
+    payload = occurrence_json(occ, cal, own_addresses(db)) if occ else {"id": None, "event_id": event.id}
     payload |= {
         "description": event.description,
         "rrule": event.rrule,

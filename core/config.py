@@ -29,7 +29,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    ValidationError,
     field_validator,
     model_validator,
 )
@@ -118,8 +117,8 @@ class AccountConfig(BaseModel):
     only: str = ""
     # Google Calendar API only. Basic auth to Google's CalDAV endpoint has been
     # off for years, so this path is OAuth2 or nothing: create a Desktop client
-    # in Google Cloud Console and run `python -m agent.google_auth` to mint the
-    # refresh token.
+    # in Google Cloud Console, then `meercal.sh google-auth` (or, from a
+    # checkout, `python -m agent.google_auth`) to mint the refresh token.
     client_id: str = ""
     client_secret: str = ""
     refresh_token: str = ""
@@ -405,12 +404,38 @@ class ReminderRule(BaseModel):
         return [self.lead] if isinstance(self.lead, str) else [x for x in self.lead if x]
 
 
+def _refuse_orphan_account_keys(agent: Any) -> None:
+    """Account keys sitting in ``[agent]`` because the header stayed commented.
+
+    Both the written file and the example ship the block commented out, header
+    and all. Filling in the fields without also uncommenting
+    ``[[agent.account]]`` leaves the credentials as keys of ``[agent]``, where
+    nothing reads them: the file looks full of an account and the agent reports
+    none at all. That is the same silence a mistyped key inside a block gets
+    refused for, so it is refused here too.
+    """
+    if not isinstance(agent, dict):
+        return
+    stray = sorted(k for k in agent if k in AccountConfig.model_fields)
+    if not stray:
+        return
+    raise ValueError(
+        f"[agent] has calendar account keys directly in it: {', '.join(stray)}.\n"
+        "\n"
+        "Those belong under a [[agent.account]] header, and the one above them "
+        "is still commented out, so they configure nothing and the agent sees "
+        "no accounts at all. Uncomment the [[agent.account]] line."
+    )
+
+
 class TomlSource(PydanticBaseSettingsSource):
     """meercal.toml, flattened onto the field names above.
 
     Unknown sections and unknown keys are ignored rather than rejected: this
     same file is read by two processes that each only care about half of it,
     and a future version's key must not stop an older binary from starting.
+    The exception is a key whose mistake this can name back; see
+    ``_refuse_orphan_account_keys``.
     """
 
     def __init__(self, settings_cls: type[BaseSettings], path: Path | None):
@@ -430,6 +455,7 @@ class TomlSource(PydanticBaseSettingsSource):
         accounts = raw.get("agent", {}).get("account") if isinstance(raw.get("agent"), dict) else None
         if isinstance(accounts, list):
             out["accounts"] = accounts
+        _refuse_orphan_account_keys(raw.get("agent"))
 
         # [reminders.channel.<name>] and [[reminders.rule]] are nested deeper
         # than the flat map above can reach, the same way [[agent.account]] is.
@@ -611,7 +637,10 @@ def config_path() -> Path | None:
 def get_settings() -> Settings:
     try:
         return Settings()
-    except ValidationError as exc:  # a broken config should say so, not traceback
+    # ValidationError is a ValueError, and TomlSource raises plain ones for the
+    # mistakes it can name better than pydantic can. Either way it is a broken
+    # config, which should say so rather than traceback.
+    except ValueError as exc:
         path = config_path()
         where = f" in {path}" if path else ""
         raise SystemExit(f"meercal: bad configuration{where}\n\n{exc}") from exc

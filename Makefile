@@ -1,8 +1,9 @@
 # meercal: convenience targets.
 #
-# The server is Dockerized; the agent runs natively, because it is the half
-# that holds your calendar passwords. `make up` runs the app, `make agent` runs
-# the connector.
+# `make up` runs the whole stack in Docker -- postgres, server and agent -- the
+# same three containers meercal.sh installs. `make agent` runs the connector
+# natively instead, which is the faster loop for working on it and the only way
+# to reach the host: OAuth and desktop reminders need your session.
 
 COMPOSE ?= docker compose
 VENV    ?= .venv
@@ -24,19 +25,20 @@ PLATFORMS  ?= linux/amd64,linux/arm64
 # builds at all. Created on demand by the buildx target below.
 BUILDER    ?= meercal
 
-.PHONY: help up down logs build infra dev venv agent agent-test remind remind-test \
+.PHONY: help up up-meerail down logs build infra dev venv agent agent-test remind remind-test \
         remind-next seed psql fmt test test-db \
         desktop hub-up hub-down buildx images push images-push version
 
 help:
 	@echo "meercal $(VERSION):"
-	@echo "  make up         - build + run the stack (server + postgres)"
+	@echo "  make up         - build + run the stack (postgres + server + agent)"
+	@echo "  make up-meerail - the same, joined to meerail's network (attendee autocomplete)"
 	@echo "  make down       - stop it"
-	@echo "  make logs       - tail the server"
+	@echo "  make logs       - tail the server ($(COMPOSE) logs -f agent for the other half)"
 	@echo "  make infra      - run only postgres (for native server dev)"
 	@echo "  make dev        - run the server natively with --reload (needs 'make infra' + venv)"
 	@echo "  make venv       - create $(VENV) and install server + agent deps"
-	@echo "  make agent      - run meercal-agent natively (reads meercal.toml)"
+	@echo "  make agent      - run meercal-agent natively instead of in its container"
 	@echo "  make agent-test - check every configured calendar account, then exit"
 	@echo "  make remind-test- one real notification through every reminder channel"
 	@echo "  make remind-next- what reminders would fire in the next 24 hours"
@@ -52,6 +54,15 @@ help:
 up:
 	MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) $(COMPOSE) up --build -d
 	@echo "meercal on http://127.0.0.1:$${MEERCAL_PORT:-8010}"
+
+# The same stack with the server on meerail's compose network as well, which is
+# what the attendee field needs: meerail's Postgres is published on the host's
+# loopback and a container cannot reach that. See docker-compose.meerail.yml,
+# which also says what [meerail] database_url has to be for this to pay off.
+up-meerail:
+	MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) \
+	  $(COMPOSE) -f docker-compose.yml -f docker-compose.meerail.yml up --build -d
+	@echo "meercal on http://127.0.0.1:$${MEERCAL_PORT:-8010}, reading meerail's address book"
 
 down:
 	$(COMPOSE) down

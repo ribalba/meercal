@@ -1,0 +1,52 @@
+# The suite, wired together. Add this file when meerail runs on the same
+# machine and you want the attendee field to know who you write to:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.meerail.yml up -d
+#   make up-meerail                       # the same thing
+#
+# Why a file of its own, rather than a line in docker-compose.yml: the network
+# below is `external`, and compose refuses to start a stack whose external
+# network does not exist. Everyone who does not run meerail would get an error
+# instead of a calendar.
+#
+# --- What this is actually for ---------------------------------------------
+#
+# meerail publishes its Postgres on the *host's* loopback (127.0.0.1:5432), the
+# same as meercal does. Inside a container 127.0.0.1 is the container, so the
+# obvious setting --
+#
+#   [meerail] database_url = "postgresql+psycopg://...@127.0.0.1:5432/meerail"
+#
+# -- is a connection refused for the server, every time, and the attendee field
+# offers nobody while `/api/state` still cheerfully reports meerail as
+# configured. Joining meerail's own compose network is the fix: the database is
+# then a hostname away, and nothing has to be published any wider than loopback
+# to get there.
+#
+# With this file in the command, meercal.toml wants meerail's *container*:
+#
+#   [meerail]
+#   database_url = "postgresql+psycopg://meerail:PASSWORD@meerail-db-1:5432/meerail"
+#
+# `meerail-db-1` is the container name compose gives meerail's database when
+# meerail's project is called "meerail" (`docker ps` will confirm it, and
+# MEERAIL_NETWORK below covers a project named something else).
+#
+# Read-only, on meercal's side and by construction: the server only ever runs
+# the two SELECTs in app/routers/contacts.py against it.
+services:
+  server:
+    networks:
+      # Its own stack, unchanged, plus meerail's. The base file gives meercal's
+      # Postgres the alias `meercal-db` precisely so that this second network
+      # cannot make the bare name `db` ambiguous -- both stacks have one.
+      meercal:
+      meerail:
+
+networks:
+  meerail:
+    external: true
+    # meerail's compose project is "meerail" and its network is "meerail", so
+    # Docker calls it meerail_meerail. Override for a project named otherwise:
+    #   MEERAIL_NETWORK=whatever docker compose -f ... up -d
+    name: ${MEERAIL_NETWORK:-meerail_meerail}

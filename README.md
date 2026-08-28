@@ -20,6 +20,7 @@ drawn continuously · **calendar sets** on number keys and alt-click **solo**, f
 calendars problem · iCloud, CalDAV, Google and `.ics` · a filter bar that types like meerail's
 search (`cal:family with:anna is:span`, POSIX regex optional) · search across every calendar,
 hidden ones included · clashes between calendars marked, not left to be noticed ·
+a person against the events you are not on your own at, invitations included ·
 **reminders** on your desktop, your phone or an actual phone call, with rules written in the
 same filter language and a mute per event · full
 keyboard control · light + dark, following the system or pinned · optional **meerail**
@@ -93,6 +94,7 @@ bash meercal.sh logs agent  # watch the first sync work through your calendars
 bash meercal.sh test        # check every account, change nothing
 bash meercal.sh sync        # run one pass now
 bash meercal.sh demo        # fill it with demo calendars worth looking at
+bash meercal.sh google-auth # mint a Google refresh token and add the account
 bash meercal.sh update      # pull the newest release and restart
 bash meercal.sh config      # edit meercal.toml, then restart
 bash meercal.sh backup      # dump the database
@@ -114,7 +116,7 @@ you rather than as root.
 git clone https://github.com/ribalba/meercal
 cd meercal
 cp meercal.example.toml meercal.toml && chmod 600 meercal.toml
-make up          # server + postgres  ->  http://127.0.0.1:8010
+make up          # postgres + server + agent  ->  http://127.0.0.1:8010
 ```
 
 Nothing to look at yet. Either add an account (below), or fill it with a week worth looking
@@ -124,6 +126,27 @@ at:
 make venv
 make seed        # seven calendars, a 19-day trip, an on-call week, a double booking
 ```
+
+### Which zone it draws in
+
+Everything is stored in UTC and drawn in one zone, decided once on the server, so that no two
+clients can disagree about what a time means. That zone is `server.timezone` in `meercal.toml`,
+and it defaults to `"system"` — the machine the server runs on.
+
+In Docker that machine is the *container*, whose own zone is UTC. So compose hands it yours:
+
+```bash
+cp .env.example .env      # then set TZ=Europe/Berlin, or whatever you are in
+```
+
+`meercal.sh` fills that in from the host it installs on, and `make up` reads it from `.env`.
+If the times come out an hour or two off, that is what to check first — or name the zone in
+`meercal.toml` outright, which nothing can misread. **The calendar tells you either way**: when
+the zone it draws in is not the zone your browser is in, the toolbar says so, because a
+calendar that is wrong by a constant offset still looks exactly like a calendar.
+
+All-day events are the exception, in every direction: they are dates, not instants, and never
+move between zones.
 
 ### Add your calendars
 
@@ -170,9 +193,42 @@ open it the way it opens Gmail for meerail. Two ways in:
 
 - **The secret `.ics` address** (Calendar settings → *Integrate calendar* → *Secret address in
   iCal format*) as an `ics` account. Read-only, no credentials, works today.
-- **OAuth**: create a Desktop client in the Google Cloud Console, then put `client_id`,
-  `client_secret` and `refresh_token` in the account block with `kind = "google"`. The rest is
-  ordinary CalDAV with a bearer token; see `agent/google.py`.
+- **OAuth**, for read and write: create a Desktop client in the Google Cloud Console (enable
+  the *CalDAV API*; under *Google Auth Platform → Audience* choose External and then
+  **Publish app**), then mint a refresh token with `meercal.sh google-auth`, or
+  `python -m agent.google_auth` from a checkout. It
+  sends you to Google, catches the redirect on `127.0.0.1`, and prints the `[[agent.account]]`
+  block — `client_id`, `client_secret`, `refresh_token`, with `kind = "google"`. In a
+  `meercal.sh` install that block is appended to `meercal.toml` for you. If the browser is on
+  a different machine than the install, the page it lands on will fail to load; paste that
+  address back at the prompt and the code comes home that way. The rest is ordinary CalDAV
+  with a bearer token; see `agent/google.py`.
+
+  Publishing the project is not optional busywork. Google issues refresh tokens that
+  [expire after seven days](https://developers.google.com/identity/protocols/oauth2#expiration)
+  to any project whose publishing status is still *Testing*, so an unpublished client means the
+  calendar goes quiet every week. Published-but-*unverified* is the correct state for something
+  only you run: Google shows an "unverified app" warning at the consent screen, *Advanced → Go
+  to Meercal* goes through, and the token then lasts until it is revoked. Verification only
+  matters if you intend to hand the client to strangers.
+
+### Import an .ics file
+
+Drop a calendar file anywhere on the window. meercal reads it, tells you what is in it — how
+many events, which dates, what the file calls itself — and asks which calendar it goes in.
+There is an **Import…** link under the calendar list for the same thing when the file is not
+somewhere you can drag it from.
+
+The default is a **new calendar**, which lands under an *Imported* heading in the sidebar and
+stays local: no server, nothing to sync, one tickbox away from hidden if it was a mistake.
+Pick one of your own calendars instead and the events go there, and a calendar with a server
+behind it has them queued for the agent the same way an edit here is — the dialog says so, and
+they are on the server after the next pass.
+
+Importing the same file twice **updates rather than duplicates**: events are matched by their
+UID, so re-importing a corrected export does the obvious thing. Events outside the sync
+horizon are stored but not drawn until it reaches them, and the dialog says how many of those
+there are rather than letting them look lost.
 
 ## The views
 
@@ -194,9 +250,21 @@ Clicking an empty day in the Ribbon starts an event on it, the way double-clicki
 does in the other views. The cheat sheet in the sidebar is generated from the table
 that binds them, so it cannot drift.
 
-The **mouse wheel pages** in every view but the Ribbon, which is one continuous scroll and
-has nowhere to page to. In the week and day grids it scrolls the hours first and only changes
-the date once it runs out of them, so neither gesture costs the other.
+The **week and day grids are one continuous scroll**, like the Ribbon: consecutive weeks are
+drawn one under the other, so eleven at night on Sunday is followed by midnight on Monday.
+Each week's day labels are sticky and are pushed up by the next week's as you scroll into it,
+the date in the toolbar follows the scroll, and the loaded window slides as you go. Nothing
+pages and nothing swaps under a header that stayed still. The arrows and `g` scroll there too,
+so a week boundary looks the same however you cross it.
+
+The **mouse wheel pages** in the month and year views, which are pages.
+
+In the week and day grids you can **draw on the grid**: sweep empty space to write a new event
+over the hours you swept, drag an event to move it, and drag either end of one to change just
+that end. Everything snaps to the quarter hour, the view follows a drag that reaches its edge,
+and Escape puts it back. Dragging an event past the bottom of its week drops it in the next
+one. Read-only calendars have no handles, and moving something that repeats says so before it
+changes every occurrence.
 
 ### Places you keep typing
 
@@ -386,9 +454,10 @@ that neither path touches. `bash meercal.sh backup` first if you would rather no
 ## Working with meerail
 
 Set `[meerail] database_url` to your [meerail](https://github.com/ribalba/meerail) database
-and the attendee field autocompletes from the people you actually correspond with: meerail
-builds that address book from every message it holds, ranked by how often. It is read-only:
-meercal never writes to your mail.
+and the invite field autocompletes from the people you actually correspond with: meerail
+builds that address book from every message it holds, ranked by how often. Pick one and it
+becomes a bubble under the name meerail knows them by. It is read-only: meercal never writes
+to your mail.
 
 ## On a phone
 
@@ -426,10 +495,22 @@ not have one.
 
 ## Development
 
+`docker compose up` from a checkout builds and runs the same three containers an install
+gets, so what you are testing has the shape of what you ship. It needs `MEERCAL_UID`/`GID` in
+`.env` (see `.env.example`) to read your mode-0600 `meercal.toml`, and it takes a project name
+of its own, `meercal-dev`, so that a checkout in a directory called `meercal` cannot collide
+with the install `meercal.sh` puts in `~/.meercal` — same derived name, shared volume, and a
+database that answers with the wrong password.
+
+Running a piece of it natively is still the faster loop, and the only way to reach the host:
+OAuth (`python -m agent.google_auth`) and desktop reminders need your session, not a
+container.
+
 ```bash
 make venv                  # .venv with both requirement sets
 make infra                 # just Postgres
 make dev                   # uvicorn --reload on :8000
+make agent                 # the connector, outside Docker
 make test-db && make test  # the suite, against a throwaway database
 
 tools/caldav_test_server.sh start   # a real Radicale to test the agent against
@@ -467,9 +548,11 @@ Not there yet:
 
 - **Editing one instance of a repeat.** An edit changes the whole series, and the panel says
   so. Writing an override with a `RECURRENCE-ID` is the next thing.
-- **Invitations.** Attendees are stored and written, but meercal does not send or process
-  iTIP mail yet.
-- **Google OAuth** is implemented but has not been run against a live account.
+- **Invitations.** Everyone invited is a bubble on the event, carrying whatever the server
+  last said about them: a check for an acceptance, a struck-through name for a no, and an ×
+  to take someone off again. What is missing is the mail. meercal does not send or process
+  iTIP itself, so whether an invitation reaches anybody is up to the calendar server: one
+  that does RFC 6638 scheduling sends it on the PUT, and a plain store just keeps the text.
 - **Drag to move or resize.** Everything goes through the event panel for now.
 
 ## License

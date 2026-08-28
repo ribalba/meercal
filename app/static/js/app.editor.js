@@ -27,6 +27,166 @@ App.editor = (() => {
     ["FREQ=YEARLY", "Every year"],
   ];
 
+  /* Who is invited, one bubble each.
+
+     This was a comma-separated text box, and the two things wrong with it were
+     really the same thing: text holds an address and nothing else. A reply that
+     had come back from the server -- Anna accepted, Bo declined -- had nowhere
+     to be drawn, and saving rebuilt every attendee out of that text, which
+     threw the reply away and reset everyone to NEEDS-ACTION. A bubble is a
+     *person*: it carries whatever the server last said about them, shows it,
+     and hands it back on save untouched. */
+  const PARTSTAT = {
+    "ACCEPTED": { cls: "yes", says: "Accepted" },
+    "DECLINED": { cls: "no", says: "Declined" },
+    "TENTATIVE": { cls: "maybe", says: "Answered tentatively" },
+    "DELEGATED": { cls: "maybe", says: "Delegated to someone else" },
+    "NEEDS-ACTION": { cls: "wait", says: "Not answered yet" },
+  };
+
+  /* Deliberately loose. An internal address has no dot in it (`bo@intranet` is
+     a real address on plenty of networks) and a field that rejects those is
+     wrong more often than one that lets a typo through to a bounce. */
+  const LOOKS_LIKE_MAIL = /^[^\s@,;<>]+@[^\s@,;<>]+$/;
+
+  function attendeeField(initial, placeholder, readOnly) {
+    const people = (initial || []).map((p) => Object.assign({}, p));
+    const listeners = [];
+    /* A read-only calendar still shows who is on the event and who accepted --
+       that is worth reading either way -- but not the controls for changing it.
+       An × that cannot be saved is worse than no × at all. */
+    const input = App.el("input", {
+      class: "token-in", placeholder: readOnly ? "" : placeholder,
+      autocomplete: "off", disabled: readOnly || null, hidden: readOnly || null,
+    });
+    const box = App.el("div", {
+      class: "in tokens",
+      /* It is drawn as a text field, so it has to behave like one: a click on
+         the empty part of it lands in the input rather than nowhere. Guarded on
+         the target, or a click meant for a bubble's × would be stolen. */
+      onmousedown: (e) => {
+        if (readOnly || e.target !== box) return;
+        e.preventDefault();
+        input.focus();
+      },
+    }, input);
+
+    const held = (email) => people.some((p) => p.email.toLowerCase() === String(email).trim().toLowerCase());
+
+    function bubble(person, index) {
+      const state = PARTSTAT[String(person.status || "").toUpperCase()] || PARTSTAT["NEEDS-ACTION"];
+      const shown = person.name || person.email;
+      /* A CalDAV server is entitled to identify a guest by a principal URI
+         rather than an address -- iCloud does, and it is 80 characters of
+         base64 -- so the hover shows the address only when there is one worth
+         reading. The name is what the bubble says either way. */
+      const address = LOOKS_LIKE_MAIL.test(person.email) && person.email !== shown ? person.email : "";
+      return App.el("span", {
+        class: `tok st-${state.cls}`,
+        // The two things a bubble cannot fit: the reply in words, and the
+        // address behind a name that is only a display name.
+        title: address ? `${address} · ${state.says}` : `${shown} · ${state.says}`,
+      },
+        App.el("span", {
+          class: "tok-mark", "aria-hidden": "true",
+          html: state.cls === "yes" ? App.icon("check", 11) : "",
+        }),
+        App.el("span", { class: "tok-name", text: shown }),
+        readOnly ? null : App.el("button", {
+          class: "tok-x", type: "button", title: `Remove ${shown}`,
+          "aria-label": `Remove ${shown}`, html: App.icon("close", 11),
+          onclick: () => { people.splice(index, 1); draw(); input.focus(); },
+        }),
+      );
+    }
+
+    function draw() {
+      box.querySelectorAll(".tok").forEach((node) => node.remove());
+      /* Inserted before the input rather than through replaceChildren: that
+         would take the focused input out of the document and put it back,
+         which drops the caret in the middle of typing an address. */
+      people.forEach((person, i) => box.insertBefore(bubble(person, i), input));
+      listeners.forEach((fn) => fn());
+    }
+
+    /* One entry, as a bubble. False when it is not an address, which is the
+       caller's cue to leave it in the box where it can be fixed. A duplicate is
+       not a failure: the person is already invited, which is what was asked
+       for, so the entry is swallowed and the field moves on. */
+    function add(entry, name) {
+      let text = String(entry || "").trim();
+      // "Anna Meier <anna@example.com>", which is what a copy out of a mail
+      // client gives you, and quoted when the name has a comma in it.
+      const angled = /^(.*)<([^>]*)>$/.exec(text);
+      if (angled) {
+        name = name || angled[1].trim().replace(/^["']|["']$/g, "").trim();
+        text = angled[2].trim();
+      }
+      const email = text.replace(/^mailto:/i, "").trim();
+      if (!email) return true;
+      if (held(email)) return true;
+      if (!LOOKS_LIKE_MAIL.test(email)) return false;
+      people.push({ email, name: name || "", status: "NEEDS-ACTION", role: "REQ-PARTICIPANT" });
+      draw();
+      return true;
+    }
+
+    /* Whatever is half-typed, turned into bubbles. Returns the first entry it
+       could not read, which is also what stays in the box: an address with a
+       typo in it should be visible and fixable, and never silently dropped
+       because Save happened to be the next thing clicked. */
+    function commit() {
+      const parts = input.value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+      const bad = parts.filter((part) => !add(part));
+      input.value = bad.join(", ");
+      box.classList.toggle("bad", bad.length > 0);
+      return bad[0] || "";
+    }
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === "," || e.key === ";" || e.key === "Tab") {
+        if (!input.value.trim()) return;      // Tab out of an empty box still tabs
+        e.preventDefault();
+        commit();
+        return;
+      }
+      // Backspace in an empty box takes the last one back, which is what every
+      // other address field on the machine does.
+      if (e.key === "Backspace" && !input.value && people.length) {
+        e.preventDefault();
+        people.pop();
+        draw();
+      }
+    });
+    // Leaving the field commits too: a typed address with the panel's Save
+    // clicked straight after is the single most likely way to use this.
+    input.addEventListener("blur", commit);
+    input.addEventListener("paste", (e) => {
+      const text = (e.clipboardData || window.clipboardData || { getData: () => "" }).getData("text");
+      if (!text || !/[,;\n]/.test(text)) return;   // one address types itself in
+      e.preventDefault();
+      input.value += text;
+      commit();
+    });
+
+    draw();
+    return {
+      node: box,
+      input,
+      add,
+      commit,
+      has: held,
+      focus: () => input.focus(),
+      clear: () => { input.value = ""; box.classList.remove("bad"); },
+      typed: () => input.value.trim(),
+      emails: () => people.map((p) => p.email),
+      // Copies, and the whole person: PARTSTAT, the display name, the CUTYPE
+      // that says this one is a room. All of it goes back to the server.
+      values: () => people.map((p) => Object.assign({}, p)),
+      onChange: (fn) => listeners.push(fn),
+    };
+  }
+
   function field(label, control, hint) {
     return App.el("label", { class: "fld" },
       App.el("span", { class: "fld-label", text: label }),
@@ -71,8 +231,24 @@ App.editor = (() => {
     if (event && event.all_day) end = T().addDays(end, -1);
 
     const title = App.el("input", { class: "in title-in", value: event ? event.title : "", placeholder: "Title" });
+    /* Which calendar, in the calendar's own colour. The colour is how every
+       other view says which calendar something is in, so the one control that
+       *decides* that is the last place it should be missing: the dot beside
+       the list follows the choice, and each name is written in its own hue for
+       the browsers that will draw an option that way. */
     const calSelect = App.el("select", { class: "in" },
-      cals.map((c) => App.el("option", { value: String(c.id), selected: event && event.cal === c.id, text: c.name })));
+      cals.map((c) => App.el("option", {
+        value: String(c.id), selected: event && event.cal === c.id, text: c.name,
+        style: `color:${c.color}`,
+      })));
+    const calDot = App.el("span", { class: "cal-dot" });
+    const paintCalDot = () => {
+      const chosen = cals.find((c) => String(c.id) === calSelect.value) || cals[0];
+      calDot.style.setProperty("--c", chosen ? chosen.color : "#888");
+    };
+    calSelect.addEventListener("change", paintCalDot);
+    paintCalDot();
+    const calField = App.el("div", { class: "cal-pick" }, calDot, calSelect);
     /* --- when ---------------------------------------------------------------
 
        A date pill and two time pills rather than one `datetime-local`: that
@@ -199,12 +375,16 @@ App.editor = (() => {
       options.map(([value, label]) => App.el("option", {
         value, text: label, selected: value === rule,
       })));
-    const attendees = App.el("input", {
-      class: "in", placeholder: App.state.meerail ? "Invite: starts typing from your mail" : "Invite: email addresses",
-      value: (detail && detail.attendees || []).map((a) => a.email).join(", "),
-    });
+    const invite = attendeeField((detail && detail.attendees) || [],
+      App.state.meerail ? "Invite: starts typing from your mail" : "Invite: email addresses",
+      readOnly);
     const people = App.el("div", { class: "people" });
-    if (App.state.meerail) App.contacts.attach(attendees, people);
+    // The offers, and the one line that explains an empty field. Both are
+    // built whether or not meerail is configured, because the panel's layout
+    // should not depend on which half of the suite is installed.
+    const withRow = App.el("div", { class: "with-row" });
+    const peopleNote = App.el("div", { class: "people-note", hidden: true });
+    if (App.state.meerail && !readOnly) App.contacts.attach(invite, people, withRow, peopleNote);
 
     const error = App.el("div", { class: "modal-error", hidden: true });
     const note = App.el("div", { class: "modal-note" });
@@ -218,6 +398,15 @@ App.editor = (() => {
 
     async function submit() {
       error.hidden = true;
+      // An address still being typed counts as invited: nobody expects Save to
+      // drop the name they just wrote because they did not press Enter first.
+      const stray = invite.commit();
+      if (stray) {
+        error.textContent = `Not an email address: ${stray}`;
+        error.hidden = false;
+        invite.focus();
+        return;
+      }
       const body = {
         calendar_id: Number(calSelect.value),
         title: title.value.trim() || "(no title)",
@@ -229,8 +418,7 @@ App.editor = (() => {
         location: location.value.trim(),
         description: description.value,
         rrule: repeat.value,
-        attendees: attendees.value.split(",").map((s) => s.trim()).filter(Boolean)
-          .map((email) => ({ email, status: "NEEDS-ACTION" })),
+        attendees: invite.values(),
       };
       try {
         if (event) await App.api.patch(`/api/events/${event.event_id}`, body);
@@ -271,7 +459,7 @@ App.editor = (() => {
       App.el("div", { class: "modal-body" },
         title,
         App.el("div", { class: "fld-row" },
-          field("Calendar", calSelect),
+          field("Calendar", calField),
           field("Repeats", repeat),
         ),
         App.el("div", { class: "fld" },
@@ -284,8 +472,18 @@ App.editor = (() => {
           location,
           places,
         ),
-        field("Invite", attendees, App.state.meerail ? "from the people you write to in meerail" : ""),
+        /* A div rather than field()'s label: a label wrapping the bubbles would
+           put a click on someone's × through to the input as well. */
+        readOnly && !invite.emails().length ? null : App.el("div", { class: "fld" },
+          App.el("span", { class: "fld-label", text: "Invite" }),
+          invite.node,
+          App.state.meerail && !readOnly
+            ? App.el("span", { class: "fld-hint", text: "from the people you write to in meerail" })
+            : null,
+        ),
         people,
+        withRow,
+        peopleNote,
         field("Notes", description),
         // Built after the card is on screen: it needs a round trip to resolve
         // what the rules currently say about this event, and the panel must
@@ -320,44 +518,135 @@ App.editor = (() => {
 
   /* `at` is where the click landed: double-clicking 14:00 on a Tuesday should
      not then ask what time was meant. Passed into the panel rather than poked
-     into it afterwards, so the pills are right on first paint. */
-  function create(at) {
+     into it afterwards, so the pills are right on first paint.
+
+     `until` is the other end, for the gesture that drew one: a drag down the
+     week grid has already said how long the thing is, and asking again with a
+     default hour would be ignoring the answer. */
+  function create(at, until) {
     const start = at || new Date(new Date().setMinutes(0, 0, 0) + 3600000);
-    const end = new Date(start.getTime() + 3600000);
+    const end = until && until > start ? until : new Date(start.getTime() + 3600000);
     mount(build(null, null, { start, end }));
   }
 
   return { open, create, close, get current() { return current; } };
 })();
 
-/* Attendee autocomplete, from meerail's address book. Silent when meerail is
-   not configured: the field is still a field, it just stops guessing. */
+/* Attendee autocomplete, from meerail's address book, and the row of offers
+   that follows from it: once one person is on the invitation, meerail's
+   co-recipient graph already knows who normally comes with them, and the same
+   five names every week is exactly the typing worth not doing.
+
+   Silent when meerail is not configured: the field is still a field, it just
+   stops guessing. Deliberately *not* silent when meerail is configured and does
+   not answer -- a field that quietly offers nobody looks identical to an
+   address book with nobody in it, which is the whole reason this had to be
+   debugged from the outside rather than read off the screen. */
 App.contacts = {
-  attach(input, list) {
+  attach(invite, list, chips, note) {
     let timer = null;
-    input.addEventListener("input", () => {
-      clearTimeout(timer);
-      const term = input.value.split(",").pop().trim();
+    let matchSeq = 0;        // the typeahead's race guard
+    let relatedSeq = 0;      // and the suggestion row's
+    let relatedKey = null;   // who was last asked about: same people, same answer
+
+    /* The people already on the invitation. The bubbles and nothing else: what
+       is under the caret is the typeahead's business and not a person yet. */
+    const entered = () => invite.emails();
+
+    /* Both endpoints answer with the same shape, so one place decides whether
+       there is something wrong to say. */
+    function say(payload) {
+      const message = payload && payload.error
+        ? `meerail did not answer: ${payload.error}` : "";
+      note.textContent = message;
+      note.hidden = !message;
+    }
+
+    function refresh() {
+      lookup();
+      related();
+    }
+
+    async function lookup() {
+      const term = invite.typed();
       if (term.length < 2) { list.replaceChildren(); return; }
-      timer = setTimeout(async () => {
-        let payload;
-        try { payload = await App.api.get(`/api/contacts?q=${encodeURIComponent(term)}`); }
-        catch (e) { return; }
-        list.replaceChildren(...payload.people.map((p) => App.el("button", {
-          class: "person",
-          onclick: () => {
-            const parts = input.value.split(",");
-            parts[parts.length - 1] = ` ${p.email}`;
-            input.value = parts.join(",").replace(/^\s+/, "") + ", ";
-            list.replaceChildren();
-            input.focus();
-          },
+      const seq = ++matchSeq;
+      let payload;
+      try { payload = await App.api.get(`/api/contacts?q=${encodeURIComponent(term)}`); }
+      catch (e) { return; }
+      if (seq !== matchSeq) return;         // a later keystroke won the race
+      say(payload);
+      list.replaceChildren(...payload.people.map((p) => App.el("button", {
+        class: "person",
+        type: "button",
+        // The typeahead finishes the address being typed, so what was typed
+        // goes and a bubble takes its place -- carrying the name from the
+        // address book, which is what the bubble is then labelled with.
+        onclick: () => {
+          invite.add(p.email, p.name);
+          invite.clear();
+          list.replaceChildren();
+          invite.focus();
         },
-          App.el("span", { class: "person-name", text: p.name || p.email }),
-          App.el("span", { class: "person-mail", text: p.email }),
-          App.el("span", { class: "person-count", text: `${p.count}` }),
-        )));
-      }, 180);
+      },
+        App.el("span", { class: "person-name", text: p.name || p.email }),
+        App.el("span", { class: "person-mail", text: p.email }),
+        App.el("span", { class: "person-count", text: `${p.count}` }),
+      )));
+    }
+
+    async function related() {
+      const people = entered();
+      const key = people.join(",");
+      if (key === relatedKey) return;       // the same people, so the same answer
+      relatedKey = key;
+      if (!people.length) { chips.replaceChildren(); return; }
+
+      const seq = ++relatedSeq;
+      let payload;
+      try {
+        payload = await App.api.get("/api/contacts/related?"
+          + people.map((e) => `address=${encodeURIComponent(e)}`).join("&"));
+      } catch (e) {
+        relatedKey = null;                  // let the next keystroke try again
+        return;
+      }
+      if (seq !== relatedSeq) return;
+      say(payload);
+      // The endpoint already leaves out whoever is invited, but it matches on
+      // the exact address: a bubble that differs only in case would come back
+      // as an offer to invite someone who is standing right there.
+      const offers = payload.people.filter((p) => !invite.has(p.email));
+      if (!offers.length) { chips.replaceChildren(); return; }
+      chips.replaceChildren(
+        App.el("span", { class: "with-label", text: "Usually with" }),
+        ...offers.map((p) => App.el("button", {
+          class: "with-chip",
+          type: "button",
+          title: `Invite ${p.email}`,
+          // An offer adds a person: unlike the typeahead it is not finishing
+          // what is being typed, so a half-written address is left alone.
+          onclick: () => { invite.add(p.email, p.name); invite.focus(); },
+        },
+          App.el("span", { class: "with-plus", text: "+" }),
+          App.el("span", { class: "with-name", text: p.name || p.email }),
+        )),
+      );
+    }
+
+    invite.input.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(refresh, 180);
     });
+    /* A bubble arriving or leaving changes who is worth suggesting exactly as
+       typing does. Short debounce rather than none: adding one person from the
+       "usually with" row is usually followed by adding another. */
+    invite.onChange(() => {
+      clearTimeout(timer);
+      timer = setTimeout(related, 120);
+    });
+    // An event being edited arrives with people already on it, and those are
+    // the best seeds there are: ask before a key is ever pressed.
+    related();
   },
 };

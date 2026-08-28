@@ -109,6 +109,10 @@ class Calendar(Base):
     # rename does not silently undo it, and clearing it here restores theirs.
     display_name: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     color: Mapped[str] = mapped_column(String(32), default=CALENDAR_COLORS[0], nullable=False)
+    # Whether that colour was picked here. A calendar server's own colour is
+    # only ever a suggestion, and one the reader has overruled must not come
+    # back on the next sync: the same bargain `display_name` makes with `name`.
+    color_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tz_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     read_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Whether it is drawn right now. A hidden calendar is still synced and still

@@ -119,6 +119,23 @@ passwrod = "typo"
     assert "passwrod" in str(exc.value)
 
 
+def test_account_keys_outside_a_block_are_rejected(toml):
+    # The shipped file comments the example out header and all. Filling in the
+    # fields without uncommenting [[agent.account]] leaves them as keys of
+    # [agent], where the file looks configured and the agent syncs nothing.
+    toml("""
+[agent]
+interval = 300
+label = "Family"
+kind = "icloud"
+username = "you@icloud.com"
+password = "app-specific"
+""")
+    with pytest.raises(Exception) as exc:
+        load()
+    assert "[[agent.account]]" in str(exc.value)
+
+
 def test_an_unknown_kind_is_rejected(toml):
     toml('[[agent.account]]\nlabel = "X"\nkind = "carrier-pigeon"\n')
     with pytest.raises(Exception):

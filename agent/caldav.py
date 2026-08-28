@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlsplit
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -92,6 +92,10 @@ class Listing:
     # True when the listing is the *whole* collection, which is the only case
     # in which anything missing from it may be deleted locally.
     complete: bool = False
+    # True when the server has nothing further to report. False means the
+    # backlog was longer than one pass would walk, and the caller must not
+    # record the collection as caught up. See CalDAVClient.changes.
+    drained: bool = True
 
 
 class CalDAVClient:
@@ -125,6 +129,25 @@ class CalDAVClient:
 
     # --- plumbing ---------------------------------------------------------
 
+    @staticmethod
+    def _detail(response: httpx.Response) -> str:
+        """The sentence out of an error body that is worth reading.
+
+        200 characters is the right slice for a CalDAV server, which answers in
+        a short DAV error element. It is the wrong slice for Google, whose 403
+        for a disabled API is a paragraph of GData boilerplate wrapped around
+        one <internalReason> that names the API and links the page that turns it
+        on — always past the cut, so the one useful line was the one thrown away.
+        """
+        text = response.text
+        if "schemas.google.com/g/2005" in text:
+            code = re.search(r"<code>(.*?)</code>", text, re.S)
+            reason = re.search(r"<internalReason>(.*?)</internalReason>", text, re.S)
+            parts = [m.group(1).strip() for m in (code, reason) if m]
+            if parts:
+                return ": ".join(parts)
+        return text[:200]
+
     def _request(self, method: str, url: str, body: str = "", depth: str = "0", **kw) -> httpx.Response:
         headers = dict(kw.pop("headers", {}))
         if depth is not None:
@@ -132,8 +155,23 @@ class CalDAVClient:
         response = self._client.request(method, url, content=body.encode() if body else None,
                                         headers=headers, **kw)
         if response.status_code >= 400:
-            raise CalDAVError(f"{method} {url} -> {response.status_code} {response.text[:200]}")
+            raise CalDAVError(f"{method} {url} -> {response.status_code} {self._detail(response)}")
         return response
+
+    @staticmethod
+    def _href(url: str) -> str:
+        """The form an href takes *inside a request body*: a path.
+
+        The other direction of ``_resolve``. A multiget names its resources in
+        the XML rather than in the request line, and iCloud matches those
+        against paths only: hand it the absolute URL its own listing just gave
+        us and every one of them comes back 404, which reads exactly like a
+        calendar with nothing in it.
+        """
+        parts = urlsplit(url)
+        if not parts.scheme and not parts.netloc:
+            return url
+        return parts.path + (f"?{parts.query}" if parts.query else "")
 
     @staticmethod
     def _resolve(base: httpx.URL | str, href: str) -> str:
@@ -144,6 +182,24 @@ class CalDAVClient:
         wrong is how an iCloud account syncs once and then 404s forever.
         """
         return urljoin(str(base), href)
+
+    @staticmethod
+    def _is_collection(url: str, calendar_url: str) -> bool:
+        """Whether an href out of a listing names the calendar itself.
+
+        Every listing has one response that is not a resource, and it must not
+        be treated as one. A sync-collection report names the collection
+        whenever the calendar's *own* properties changed, and iCloud does. The
+        href then survives into the multiget, and Apple answers a multiget that
+        names its own collection by not answering at all: the pass dies on the
+        read timeout thirty seconds later, the token is never written, and the
+        next pass is handed the same href again. A calendar stops syncing for
+        good, and the only thing said about it is that something timed out.
+
+        Compared by path, because the two ends can disagree about the host: the
+        URL we hold has no port and iCloud answers on ``...:443``.
+        """
+        return urlsplit(url).path.rstrip("/") == urlsplit(calendar_url).path.rstrip("/")
 
     def _multistatus(self, response: httpx.Response) -> list[ET.Element]:
         try:
@@ -213,10 +269,19 @@ class CalDAVClient:
     # --- listing ----------------------------------------------------------
 
     def changes(self, calendar_url: str, sync_token: str = "") -> Listing:
-        """What is different since ``sync_token``, or everything if it cannot say."""
+        """What is different since ``sync_token``, or everything if it cannot say.
+
+        A sync-collection report is *paged*. Google answers roughly 250
+        resources at a time and hands back a token to carry on from, and asking
+        once a pass is not a slow catch-up, it is no catch-up at all: the caller
+        stamps the collection as seen and the ctag then short-circuits every
+        following pass, so a change sitting on page two is never fetched. That
+        is a reply that never turns up, or a deletion that stays on screen.
+        So the pages are walked here until the server runs out of them.
+        """
         if sync_token:
             try:
-                return self._sync_collection(calendar_url, sync_token)
+                return self._drain(calendar_url, sync_token)
             except CalDAVError:
                 # An expired or unknown token is answered with 403/409 by most
                 # servers. That is not a failure, it is a request for a full
@@ -229,6 +294,29 @@ class CalDAVClient:
         except CalDAVError:
             listing.sync_token = ""
         return listing
+
+    # A page is ~250 resources, so this is a five-figure backlog in one pass:
+    # far more than a real one, and still a bound rather than a promise to keep
+    # asking a misbehaving server forever.
+    MAX_SYNC_PAGES = 40
+
+    def _drain(self, calendar_url: str, sync_token: str) -> Listing:
+        """Every page of a sync-collection report, from ``sync_token`` on."""
+        whole = Listing(sync_token=sync_token)
+        seen_tokens = {sync_token}
+        for _ in range(self.MAX_SYNC_PAGES):
+            page = self._sync_collection(calendar_url, whole.sync_token)
+            whole.changes.extend(page.changes)
+            # No token back, or the same one again, means this is as far as the
+            # server will go; stopping is what keeps that from looping forever.
+            if not page.sync_token or page.sync_token in seen_tokens:
+                return whole
+            seen_tokens.add(page.sync_token)
+            whole.sync_token = page.sync_token
+            if not page.changes:
+                return whole
+        whole.drained = False
+        return whole
 
     def _sync_collection(self, calendar_url: str, sync_token: str) -> Listing:
         body = (
@@ -246,12 +334,15 @@ class CalDAVClient:
             href = entry.find("d:href", NS)
             if href is None or not href.text:
                 continue
+            url = self._resolve(response.url, href.text)
+            if self._is_collection(url, calendar_url):
+                continue
             status_el = entry.find("d:status", NS)
             gone = status_el is not None and " 404 " in (status_el.text or "")
             etag = entry.find(".//d:getetag", NS)
             listing.changes.append(
                 Change(
-                    href=self._resolve(response.url, href.text),
+                    href=url,
                     etag=(etag.text or "").strip('"') if etag is not None and etag.text else "",
                     deleted=gone,
                 )
@@ -269,7 +360,7 @@ class CalDAVClient:
             if href is None or not href.text or etag is None:
                 continue  # the collection itself has no etag
             url = self._resolve(response.url, href.text)
-            if url.rstrip("/") == calendar_url.rstrip("/"):
+            if self._is_collection(url, calendar_url):
                 continue
             listing.changes.append(
                 Change(href=url, etag=(etag.text or "").strip('"'))
@@ -286,13 +377,14 @@ class CalDAVClient:
         round trip apiece is the difference between a minute and an hour.
         """
         out: list[Change] = []
+        hrefs = [h for h in hrefs if not self._is_collection(h, calendar_url)]
         for i in range(0, len(hrefs), batch):
             chunk = hrefs[i : i + batch]
             body = (
                 '<?xml version="1.0" encoding="utf-8" ?>'
                 '<c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
                 "<d:prop><d:getetag/><c:calendar-data/></d:prop>"
-                + "".join(f"<d:href>{_xml_escape(h)}</d:href>" for h in chunk)
+                + "".join(f"<d:href>{_xml_escape(self._href(h))}</d:href>" for h in chunk)
                 + "</c:calendar-multiget>"
             )
             response = self._request("REPORT", calendar_url, body, depth="1")

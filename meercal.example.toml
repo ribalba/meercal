@@ -38,17 +38,31 @@ secret_key = "dev-insecure-secret-change-me"
 # the HTTPS requirement for everything that is not loopback.
 password = ""
 
-# The zone the calendar is drawn in. "system" follows the host. Everything is
-# stored in UTC; this is only how it is displayed, and the one exception is
-# all-day events, which are dates and never move between zones.
+# The zone the calendar is drawn in. Everything is stored in UTC; this is only
+# how it is displayed, and the one exception is all-day events, which are dates
+# and never move between zones.
+#
+# "system" means the machine the *server* runs on, which in Docker is the
+# container -- and a container's own zone is UTC. Compose passes the host's
+# zone in as TZ for exactly this reason (see .env), but if you run the server
+# some other way and the times come out an hour or two off, name the zone here
+# instead: it is the one answer nothing can misread.
+#
+#   timezone = "Europe/Berlin"
+#
+# The UI says so when it notices: a note in the toolbar appears whenever the
+# zone drawn in is not the zone your browser is in.
 timezone = "system"
 
 # 1 = Monday (ISO 8601), 7 = Sunday. Also decides where the week rules fall in
 # the Ribbon view and which column the month grid starts on.
 week_start = 1
 
-# The hours the day grid shows before you scroll. Outside them the grid is still
-# there (events never hide), it just opens on the part of the day you work in.
+# The hours you keep. The week and day grids grey everything outside them and
+# open on the part of the day you work in, so the working day is what the eye
+# lands on. Nothing is hidden by it: the grid still runs midnight to midnight,
+# an event at six in the morning is drawn in its own place, and a drag through
+# the greyed hours means what it means anywhere else.
 day_start = 8
 day_end = 20
 
@@ -313,13 +327,19 @@ sound = "message"
 interval = 300
 
 # One block per calendar account. Repeat [[agent.account]] for as many as you
-# have: the whole point of this program is that there are a lot of them.
+# have: the whole point of this program is that there are a lot of them. When
+# you copy one of the blocks below, uncomment its [[agent.account]] header too:
+# the fields without it are keys of [agent], and configure nothing.
 #
 # kind = "icloud"    Apple Calendar, shared with your family. Requires an
 #                    app-specific password from appleid.apple.com; your normal
 #                    password will not work, and neither will 2FA prompts.
-# kind = "google"    Google Calendar over CalDAV. Requires an App Password with
-#                    2-Step Verification on, same as meerail needs for Gmail.
+# kind = "google"    Google Calendar over CalDAV. An app password will *not*
+#                    open this one: basic auth to Google's CalDAV endpoint has
+#                    been off for years, so it takes an OAuth client of your
+#                    own and a refresh token. `meercal.sh google-auth`, or
+#                    `python -m agent.google_auth` from a checkout, mints one
+#                    and prints the block to paste.
 # kind = "caldav"    anything else: Nextcloud, Fastmail, Radicale, SOGo.
 #
 # [[agent.account]]
@@ -339,4 +359,9 @@ interval = 300
 # label = "Work"
 # kind = "google"
 # username = "you@example.com"
-# password = "app-password-here"
+# # The three that `google_auth` prints. No `password` field: Google does not
+# # take one here. `username` is not a credential, it is which account's CalDAV
+# # principal to start discovery at.
+# client_id = "1234-abcd.apps.googleusercontent.com"
+# client_secret = "GOCSPX-…"
+# refresh_token = "1//0…"

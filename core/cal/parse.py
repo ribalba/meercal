@@ -122,6 +122,11 @@ def _dates_as_wall(prop, tz_id: str, all_day: bool) -> list[str]:
     return out
 
 
+# ATTENDEE parameters this program models by name; everything else is carried
+# through untouched in the person's "params".
+_OWN_PARAMS = {"CN", "PARTSTAT", "ROLE"}
+
+
 def _people(comp) -> tuple[str, list[dict]]:
     def address(value) -> str:
         return str(value).replace("mailto:", "").replace("MAILTO:", "").strip()
@@ -137,14 +142,23 @@ def _people(comp) -> tuple[str, list[dict]]:
     attendees = []
     for item in items:
         params = getattr(item, "params", {})
-        attendees.append(
-            {
-                "email": address(item),
-                "name": str(params.get("CN", "")),
-                "status": str(params.get("PARTSTAT", "NEEDS-ACTION")),
-                "role": str(params.get("ROLE", "REQ-PARTICIPANT")),
-            }
-        )
+        person = {
+            "email": address(item),
+            "name": str(params.get("CN", "")),
+            "status": str(params.get("PARTSTAT", "NEEDS-ACTION")),
+            "role": str(params.get("ROLE", "REQ-PARTICIPANT")),
+        }
+        # The panel rewrites this property wholesale when someone is added or
+        # removed, so anything it cannot name is anything it would throw away:
+        # CUTYPE=RESOURCE is how a room says it is a room, RSVP and
+        # DELEGATED-TO carry the rest of a scheduling exchange. Kept verbatim
+        # and handed straight back by core.cal.build. The key is left off
+        # entirely when there is nothing extra, so the common attendee stays
+        # the four plain fields it has always been.
+        extra = {k: str(v) for k, v in params.items() if k.upper() not in _OWN_PARAMS}
+        if extra:
+            person["params"] = extra
+        attendees.append(person)
     return organizer, attendees
 
 

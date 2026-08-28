@@ -196,7 +196,14 @@ App.ribbon = (() => {
       App.el("span", { class: "chip-title", text: e.title }),
       e.location ? App.el("span", { class: "chip-where", text: e.location }) : null,
       e.recurring ? App.el("span", { class: "chip-mark", text: "↻", title: "Repeats" }) : null,
-      e.attendee_count ? App.el("span", { class: "chip-mark", text: `${e.attendee_count}` }) : null,
+      // A bare number used to sit here, which read as anything at all. It
+      // keeps its place beside the figure, where it is a count of something --
+      // and only from two upwards, because "1" next to one person is the
+      // figure saying the same thing twice.
+      App.guests.mark(e, "chip-mark", 11),
+      App.guests.count(e) > 1
+        ? App.el("span", { class: "chip-mark chip-guest-n", text: `${App.guests.count(e)}` })
+        : null,
     );
     return node;
   }
@@ -218,6 +225,7 @@ App.ribbon = (() => {
         "div",
         { class: "span-label" },
         App.el("span", { class: "span-title", text: item.title }),
+        App.guests.mark(item, "span-guests", 11),
         App.el("span", { class: "span-count", dataset: { for: String(item.id) } }, `${item.days} days`),
       ),
     );
@@ -225,7 +233,10 @@ App.ribbon = (() => {
   }
 
   function monthHeader(date) {
-    return App.el("div", { class: "rb-month" }, App.el("span", { text: T().monthName(date) }));
+    return App.el("div",
+      { class: "rb-month", title: `Press g ${date.getMonth() + 1} to jump to this month` },
+      App.monthNo(date),
+      App.el("span", { text: T().monthName(date) }));
   }
 
   function quietRow(from, to, count) {
@@ -368,6 +379,11 @@ App.ribbon = (() => {
     const grid = root.firstElementChild;
     const base = grid ? grid.offsetTop : 0;
     rows.forEach((r) => { r.top = r.node ? r.node.offsetTop - base : 0; });
+    // What the sticky month header covers, handed to the CSS so the sticky
+    // span labels come to rest below it rather than behind it. Measured rather
+    // than guessed because the header's height is a font's business.
+    const head = root.querySelector(".rb-month");
+    root.style.setProperty("--rb-head", `${head ? head.offsetHeight : 0}px`);
   }
 
   /* The day the reader is actually looking at: the last row whose top has
@@ -450,7 +466,7 @@ App.ribbon = (() => {
     // window: press `w` afterwards and you were six weeks in the past.
     if (performance.now() < suppressUntil) return;
     const date = topDate();
-    App.bus.emit("ribbon-position", date);
+    App.bus.emit("view-position", date);
     if (T().daysBetween(rangeStart, date) < EDGE_DAYS_BACK) extend(-1);
     else if (T().daysBetween(date, rangeEnd) < EDGE_DAYS_FORWARD) extend(1);
   }
@@ -475,7 +491,7 @@ App.ribbon = (() => {
     // Say where we went. The scroll events this causes are suppressed above,
     // so this is the only thing that tells the toolbar and the other views
     // which day the Ribbon is now showing.
-    App.bus.emit("ribbon-position", T().day(date));
+    App.bus.emit("view-position", T().day(date));
     return true;
   }
 

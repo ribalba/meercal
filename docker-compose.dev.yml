@@ -13,3 +13,13 @@ services:
     ports:
       # A port of its own, so a dev stack can sit beside a running one.
       - "${MEERCAL_BIND:-127.0.0.1}:8011:8000"
+
+  agent:
+    # No --reload equivalent: the agent is a loop, not a server, and restarting
+    # it mid-pass is not something a file watcher should decide. The source is
+    # mounted so that an edit needs `docker compose restart agent` rather than a
+    # rebuild; the sync loop picks the change up on its next pass either way.
+    volumes:
+      - ./agent:/app/agent
+      - ./core:/app/core
+      - ./meercal.toml:/app/meercal.toml:ro

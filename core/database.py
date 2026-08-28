@@ -74,6 +74,9 @@ _EXTRA_DDL = (
     # ordinary hour-long meetings.
     "CREATE INDEX IF NOT EXISTS ix_occ_spans "
     "ON occurrences (start_utc, end_utc) WHERE span_days > 1",
+    # `color_pinned` arrived after the first calendars did, and create_all only
+    # ever adds whole tables. Harmless on a database that already has it.
+    "ALTER TABLE calendars ADD COLUMN IF NOT EXISTS color_pinned BOOLEAN NOT NULL DEFAULT FALSE",
 )
 
 

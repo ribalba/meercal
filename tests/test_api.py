@@ -210,3 +210,49 @@ def test_clearing_a_key_needs_saying_so(client, seeded):
     cleared = client.patch(f"/api/sets/{made['id']}", json={"clear_hotkey": True}).json()
     assert cleared["hotkey"] is None
     client.delete(f"/api/sets/{made['id']}")
+
+
+def test_a_colour_chosen_here_survives_the_next_sync(client, seeded):
+    """The sidebar's palette against the server's own idea of the colour.
+
+    A calendar server sends a colour on every pass, and ingest takes it while
+    the local one is still an untouched palette default. Picking another
+    palette colour by hand therefore used to last exactly until the next sync,
+    which is the sort of bug that looks like a haunting.
+    """
+    from core.cal.ingest import get_or_create_calendar
+    from core.database import SessionLocal
+    from core.models import Account, Calendar
+
+    cal_id = client.get("/api/state").json()["calendars"][0]["id"]
+    picked = client.patch(f"/api/calendars/{cal_id}", json={"color": "#a855f7"})
+    assert picked.status_code == 200
+    assert picked.json()["color"] == "#a855f7"
+
+    with SessionLocal() as db:
+        cal = db.get(Calendar, cal_id)
+        account = db.get(Account, cal.account_id)
+        assert cal.color_pinned
+        # The next pass over the same calendar, with the server suggesting one
+        # of the ten. It is only ever a suggestion.
+        get_or_create_calendar(db, account, cal.url, cal.name, color="#2a9d5c")
+        db.commit()
+        assert db.get(Calendar, cal_id).color == "#a855f7"
+
+    client.patch(f"/api/calendars/{cal_id}", json={"color": "#1d6ff2"})
+
+
+def test_a_colour_is_a_colour(client, seeded):
+    # It is written straight into a CSS custom property, so it is checked
+    # rather than trusted.
+    cal_id = client.get("/api/state").json()["calendars"][0]["id"]
+    assert client.patch(f"/api/calendars/{cal_id}", json={"color": "red; --x:y"}).status_code == 400
+    assert client.patch(f"/api/calendars/{cal_id}", json={"color": "#abc"}).status_code == 400
+
+
+def test_the_palette_is_the_server_s_to_say(client, seeded):
+    # The sidebar offers the same ten a new calendar is given, and there is one
+    # list of them: a second copy in the browser is a second list to forget.
+    from core.models import CALENDAR_COLORS
+
+    assert client.get("/api/state").json()["calendar_colors"] == list(CALENDAR_COLORS)

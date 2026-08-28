@@ -67,6 +67,9 @@
         </div>
         <h1 class="view-title" id="view-title"></h1>
         <span class="hidden-note" id="hidden-note" hidden></span>
+        <!-- Only ever on screen when the zone the server draws in is not the
+             zone this browser is in. See paintZoneNote in app.shell.js. -->
+        <span class="zone-note" id="zone-note" hidden></span>
         <div class="grow"></div>
         <!-- Ribbon first, and first in the key order too: it is the view this
              program is for, and the other three are the familiar ones kept
@@ -111,6 +114,16 @@
   <!-- Shown while a key sequence is part-typed. `g` is the only one so far,
        but a mode you cannot see is a mode nobody uses. -->
   <div class="key-hint" id="key-hint" hidden></div>
+
+  <!-- Drawn over everything while a file is being dragged over the window.
+       `hidden` until then, and `pointer-events: none` so it never eats the
+       drop it is advertising. -->
+  <div class="drop-zone" id="drop-zone" hidden>
+    <div class="drop-card">
+      <span class="drop-title">Drop a calendar file</span>
+      <span class="drop-sub">An .ics, and meercal will ask which calendar it goes in</span>
+    </div>
+  </div>
 
   <div class="modal-backdrop" id="filter-help-modal" hidden>
     <div class="modal-card" id="filter-help-card">
@@ -216,6 +229,7 @@ rx:invoice.*2026 is:recurring</pre>
   <script src="/static/js/app.reminders.js"></script>
   <script src="/static/js/app.editor.js"></script>
   <script src="/static/js/app.sets.js"></script>
+  <script src="/static/js/app.import.js"></script>
   <script src="/static/js/app.search.js"></script>
   <script src="/static/js/app.keys.js"></script>
   <script src="/static/js/app.shell.js"></script>

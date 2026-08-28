@@ -19,6 +19,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 UTC = timezone.utc
 
+# The two files a machine writes its zone down in. Named here rather than
+# inline so that a test can point them somewhere it controls: what they mean is
+# the whole of system_zone_name below.
+TZ_NAME_FILE = "/etc/timezone"     # one line, the IANA name
+TZ_LINK_FILE = "/etc/localtime"    # a symlink into the zoneinfo database
+
 
 @lru_cache(maxsize=256)
 def zone(tz_id: str | None) -> ZoneInfo:
@@ -38,18 +44,37 @@ def zone(tz_id: str | None) -> ZoneInfo:
 
 
 def system_zone_name() -> str:
-    """This host's IANA zone name, by the two ways it is ever written down.
+    """This host's IANA zone name, by the three ways it is ever written down.
 
     ``datetime.now().astimezone()`` is not enough: it yields a *fixed offset*,
     which is right until the next DST change and then silently an hour out. The
-    name is what carries the rules, so it is worth going after: the TZ
-    environment variable if it is set, else what /etc/localtime points at.
+    name is what carries the rules, so it is worth going after.
+
+    In order: the TZ environment variable, which is the only one of the three
+    that survives being put in a container -- see docker-compose.yml, which
+    passes the host's zone in, because a container has no way to know it and
+    quietly draws the whole calendar in UTC if nobody tells it; then
+    /etc/timezone, one line holding the name, which is both Debian's own file
+    and what the usual `-v /etc/timezone:/etc/timezone:ro` recipe provides;
+    then the symlink /etc/localtime points at.
+
+    /etc/localtime is read last on purpose. Bind-mounting it into a container
+    copies the *zone data* and leaves the name behind on the host, so inside
+    the container it is a plain file with no name in its path -- which reads as
+    "no zone here" and lands everything in UTC.
     """
     env = os.environ.get("TZ", "").strip()
     if env:
         return env
     try:
-        link = os.path.realpath("/etc/localtime")
+        with open(TZ_NAME_FILE, encoding="utf-8") as handle:
+            name = handle.read().strip()
+        if name:
+            return name
+    except OSError:
+        pass
+    try:
+        link = os.path.realpath(TZ_LINK_FILE)
         marker = "/zoneinfo/"
         if marker in link:
             return link.split(marker, 1)[1]

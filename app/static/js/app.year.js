@@ -86,6 +86,7 @@ App.year = (() => {
         App.el("div", { class: "yr-row-label", title: `${e.title} · ${cal.name}` },
           App.el("span", { class: "cal-dot", style: `--c:${cal.color}` }),
           App.el("span", { class: "yr-row-name", text: e.title }),
+          App.guests.mark(e, "yr-guests", 11),
         ),
         App.el("div", { class: "yr-track" },
           App.el("button", {
@@ -123,9 +124,7 @@ App.year = (() => {
         title: `Open ${first.toLocaleDateString(undefined, { month: "long" })}, or press g ${month + 1}`,
         onclick: () => App.shell.goTo(first, "month"),
       },
-        // The number, in a bubble: it is what `g 1`–`g 12` takes, so the view
-        // that shows all twelve months is where that key ought to be legible.
-        App.el("span", { class: "yr-month-no", text: String(month + 1) }),
+        App.monthNo(first),
         App.el("span", { text: first.toLocaleDateString(undefined, { month: "long" }) }),
       ),
     );

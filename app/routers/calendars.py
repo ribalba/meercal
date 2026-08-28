@@ -7,6 +7,8 @@ reload, a second window, and the laptop being closed, and localStorage survives
 none of those reliably.
 """
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -18,6 +20,10 @@ from ..serialize import calendar_json
 from ..security import require_auth
 
 router = APIRouter(prefix="/api", tags=["calendars"], dependencies=[Depends(require_auth)])
+
+# Checked rather than trusted: this value is handed to the browser and written
+# straight into a CSS custom property, so it may be a colour and nothing else.
+HEX = re.compile(r"#[0-9a-fA-F]{6}")
 
 
 class CalendarPatch(BaseModel):
@@ -35,7 +41,11 @@ def patch_calendar(cal_id: int, body: CalendarPatch, db: Session = Depends(get_d
     if body.visible is not None:
         cal.visible = body.visible
     if body.color:
+        if not HEX.fullmatch(body.color):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Not a colour: {body.color!r}")
         cal.color = body.color
+        # Chosen here, so the next sync leaves it alone. See ingest.py.
+        cal.color_pinned = True
     if body.display_name is not None:
         cal.display_name = body.display_name.strip()
     if body.position is not None:

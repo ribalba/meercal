@@ -38,7 +38,7 @@ App.keys = (() => {
     } },
     { key: "g 1–12", label: "Jump to a month", match: () => false },
     { key: ".", label: "Sync now", run: () => document.getElementById("btn-refresh").click() },
-    { key: "?", label: "Shortcuts", run: () => document.getElementById("shortcut-box").classList.toggle("open") },
+    { key: "?", label: "Shortcuts", run: () => toggleSheet() },
   ];
 
   /* `g` then a month number.
@@ -131,6 +131,7 @@ App.keys = (() => {
       cancelJump();
       App.shell.closeDrawer();
       App.editor.close();
+      App.importer.close();
       const filter = document.getElementById("filter-input");
       if (document.activeElement === filter) filter.blur();
       return;
@@ -145,25 +146,79 @@ App.keys = (() => {
     }
   }
 
+  /* --- the cheat sheet in the sidebar --------------------------------------
+
+     Two states, because the box answers two questions. Away or on screen is
+     "do I want a list of keys in my sidebar at all", and it is remembered
+     between sessions the way meerail's is -- once the keys are learned the box
+     is furniture, and furniture you cannot move out is a nuisance. Inside it,
+     "n more" is the second question: the rare bindings, on demand.
+
+     `?` is the short way to say both: it brings the box back with everything
+     in it, and puts it away again. */
+
+  const STORE_KEY = "meercal.shortcuts.collapsed";
+  const VISIBLE = 9;             // rows an open box shows before "n more"
+
+  let moreBtn = null;
+
+  // Reading it can throw: a private window is allowed to refuse storage
+  // outright, and a cheat sheet is not worth a broken keyboard layer.
+  function collapsed() {
+    try { return localStorage.getItem(STORE_KEY) === "1"; } catch (e) { return false; }
+  }
+
+  function applyCollapsed(state) {
+    const box = document.getElementById("shortcut-box");
+    if (!box) return;
+    box.classList.toggle("collapsed", state);
+    const head = box.querySelector(".shortcut-head");
+    if (head) {
+      head.setAttribute("aria-expanded", String(!state));
+      head.title = state ? "Show the shortcuts (?)" : "Hide the shortcuts (?)";
+    }
+    try { localStorage.setItem(STORE_KEY, state ? "1" : "0"); } catch (e) { /* refused */ }
+  }
+
+  function setOpen(box, open) {
+    box.classList.toggle("open", open);
+    if (moreBtn) moreBtn.textContent = open ? "less" : `${BINDINGS.length - VISIBLE} more`;
+  }
+
+  /* What `?` does. Somebody asking for the shortcuts is not asking for nine of
+     them, so coming back brings the whole list; going away takes the lot. */
+  function toggleSheet() {
+    const box = document.getElementById("shortcut-box");
+    if (!box) return;
+    const hidden = box.classList.contains("collapsed");
+    applyCollapsed(!hidden);
+    setOpen(box, hidden);
+  }
+
   function cheatSheet() {
     const box = document.getElementById("shortcut-box");
     if (!box) return;
-    const toggle = () => {
-      box.classList.toggle("open");
-      more.textContent = box.classList.contains("open") ? "less" : `${BINDINGS.length - 9} more`;
-    };
     // The rest are a click as well as a keypress: `?` is only discoverable to
     // somebody who already knows to look for it.
-    const more = App.el("button", { class: "shortcut-more", text: `${BINDINGS.length - 9} more`,
-                                    onclick: toggle });
-    box.replaceChildren(
-      App.el("div", { class: "shortcut-title", text: "Shortcuts" }),
+    moreBtn = App.el("button", {
+      class: "shortcut-more", text: `${BINDINGS.length - VISIBLE} more`,
+      onclick: () => setOpen(box, !box.classList.contains("open")),
+    });
+    const head = App.el("button", {
+      class: "shortcut-head", type: "button",
+      onclick: () => applyCollapsed(!box.classList.contains("collapsed")),
+    },
+      App.el("span", { text: "Shortcuts" }),
+      App.el("span", { class: "shortcut-glyph", html: App.icon("chevron", 14) }),
+    );
+    box.replaceChildren(head, App.el("div", { class: "shortcut-body" },
       ...BINDINGS.map((b) => App.el("div", { class: "shortcut-row" },
         App.el("kbd", { text: b.key }),
         App.el("span", { text: b.label }),
       )),
-      BINDINGS.length > 9 ? more : null,
-    );
+      BINDINGS.length > VISIBLE ? moreBtn : null,
+    ));
+    applyCollapsed(collapsed());
   }
 
   function init() {

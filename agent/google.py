@@ -5,12 +5,14 @@ OAuth2 or nothing: an App Password does not open it the way it opens IMAP for
 meerail. What that buys, though, is that once there is a bearer token the
 protocol is the same CalDAV as everything else, so this file is only the token.
 
-Minting the refresh token is a one-time job: create an OAuth *Desktop* client in
-the Google Cloud Console, enable the CalDAV API, then
+Minting the refresh token is a one-time job, and `agent/google_auth.py` next
+door is the whole of it: create an OAuth *Desktop* client in the Google Cloud
+Console, enable the CalDAV API, then
 
-    python -m agent.google_auth --client-id … --client-secret …
+    meercal.sh google-auth                  # an install; runs in this image
+    python -m agent.google_auth             # a checkout
 
-which prints the three lines to paste into meercal.toml.
+which walks through the browser redirect and prints the account block.
 """
 
 from __future__ import annotations

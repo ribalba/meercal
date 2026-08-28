@@ -75,7 +75,9 @@ def get_or_create_calendar(
     cal.read_only = read_only
     # `color` is only ever a *suggestion* from the server: the user's choice
     # wins, and a server that reports no colour must not reset one they picked.
-    if color and not cal.display_name and cal.color in CALENDAR_COLORS:
+    # `color_pinned` is that choice made explicitly, in the sidebar; without it
+    # picking another palette colour would last exactly until the next pass.
+    if color and not cal.color_pinned and not cal.display_name and cal.color in CALENDAR_COLORS:
         cal.color = color
     return cal
 

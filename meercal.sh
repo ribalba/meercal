@@ -188,6 +188,49 @@ env_get() {  # read one KEY=value back out of .env
 pg_user() { local v; v="$(env_get POSTGRES_USER)"; printf '%s' "${v:-meercal}"; }
 pg_db()   { local v; v="$(env_get POSTGRES_DB)";   printf '%s' "${v:-meercal}"; }
 
+# Reconcile the role's password with the one in .env. Keeping the two in step
+# is not something writing .env can do on its own: POSTGRES_PASSWORD is read
+# only when the data directory is first initialised, so against a volume that
+# already exists it is ignored, and the server then fails to start with
+# "password authentication failed for user meercal" while the database beside
+# it reports itself perfectly healthy — pg_isready does not authenticate.
+#
+# Connections over the container's own unix socket are trusted, which is what
+# lets this set a password without knowing the old one.
+sync_db_password() {
+  local user db password quoted tries=0
+  password="$(env_get POSTGRES_PASSWORD)"
+  [ -n "$password" ] || return 0
+  user="$(pg_user)"; db="$(pg_db)"
+  # A password is arbitrary text and this is a literal, not a psql variable:
+  # `psql -c` hands the string to the server whole, so :'var' interpolation
+  # never happens there. Doubling the quotes is the escaping SQL wants.
+  quoted="$(printf "%s" "$password" | sed "s/'/''/g")"
+  while [ "$tries" -lt 60 ]; do
+    if compose exec -T db pg_isready -U "$user" -d "$db" -q >/dev/null 2>&1; then
+      # `if`, not a bare call, so this does not depend on the caller having
+      # switched errexit off by testing the result.
+      if compose exec -T db psql -U "$user" -d "$db" -q -v ON_ERROR_STOP=1 \
+           -c "ALTER ROLE \"$user\" WITH PASSWORD '$quoted'" >/dev/null 2>&1
+      then return 0; else return 1; fi
+    fi
+    sleep 1
+    tries=$((tries + 1))
+  done
+  return 1
+}
+
+# Every path that starts the stack goes through here: the database first, its
+# password reconciled, and only then the two containers that authenticate
+# against it. Doing it in that order is what keeps a mismatch from showing up
+# as a crash-looping server rather than as one line here.
+compose_up() {  # compose_up [flags for `up`]
+  compose up -d "$@" db
+  sync_db_password \
+    || warn "The database will not take the password in .env; the server may not connect."
+  compose up -d "$@"
+}
+
 web_url() {
   local bind port
   bind="$(env_get MEERCAL_BIND)"; port="$(env_get MEERCAL_PORT)"
@@ -285,24 +328,32 @@ EOF
 }
 
 ask_google_account() {  # <file>
-  local target="$1" label username client_id client_secret refresh_token
+  local target="$1" choice label username client_id client_secret refresh_token
   say ""
   warn "Google is the awkward one."
   info "Basic auth to Google's CalDAV endpoint has been off for years, so an app"
-  info "password will not open it the way it opens Gmail. Two ways in:"
+  info "password will not open it the way it opens Gmail. It takes an OAuth client"
+  info "of your own, made once in the Cloud Console, and a token minted through a"
+  info "browser. None of that can happen here: there is nothing installed yet for"
+  info "the browser to come back to."
   say ""
-  info "  ${B}The easy one${R}: Calendar → Settings → your calendar → Integrate"
-  info "  calendar → ${B}Secret address in iCal format${R}, added here as a feed."
-  info "  Read-only, no credentials, works today. Answer ${B}n${R} below for that."
-  say ""
-  info "  ${B}The full one${R}: an OAuth client of your own (Google Cloud Console →"
-  info "  Credentials → OAuth client ID → Desktop app), then a refresh token from"
-  info "  ${DIM}python -m agent.google_auth${R}. Read and write."
-  say ""
-  if ! ask_yn "Do you have an OAuth client ID, secret and refresh token to hand?" n; then
-    ask_ics_account "$target"
-    return
-  fi
+  choice="$(ask_choice 1 \
+    "A published .ics address instead: read-only, no credentials, works today" \
+    "Skip it for now, and run \`$0 google-auth\` once this is installed" \
+    "I already have a client ID, secret and refresh token; take them now")"
+
+  case "$choice" in
+    1) ask_ics_account "$target"; return ;;
+    2)
+      say ""
+      info "Nothing written for Google. When the install finishes, run:"
+      info "  ${B}$0 google-auth${R}"
+      info "It walks you through the Cloud Console, opens the browser, mints the"
+      info "token and adds the account. Read and write, all of your calendars."
+      return
+      ;;
+  esac
+
   label="$(ask "A name for this account" "Google")"
   username="$(ask_required "Your Google address:")"
   client_id="$(ask_required "Client ID:")"
@@ -344,7 +395,35 @@ ask_accounts() {  # ask_accounts <file>
 
 # --- writing the files --------------------------------------------------------
 
+# This machine's IANA zone name, the three ways it is ever written down. The
+# name and not an offset: the name is what carries the daylight-saving rules.
+# Worth going after because the containers cannot work it out for themselves --
+# a container's own system zone is UTC, so an install that does not pass this
+# in draws every timed event an hour or two out, plausibly enough that nobody
+# notices until a meeting is missed.
+host_zone() {
+  local name link
+  if [ -n "${TZ:-}" ]; then printf '%s\n' "$TZ"; return; fi
+  if [ -r /etc/timezone ]; then
+    name="$(tr -d '[:space:]' < /etc/timezone 2>/dev/null || true)"
+    if [ -n "$name" ]; then printf '%s\n' "$name"; return; fi
+  fi
+  link="$(readlink -f /etc/localtime 2>/dev/null || true)"
+  case "$link" in
+    */zoneinfo/*) printf '%s\n' "${link#*/zoneinfo/}"; return ;;
+  esac
+  printf 'UTC\n'
+}
+
 write_env() {  # write_env <port> <bind> <db_port>
+  # Read back before the heredoc below truncates the file, and reused if it is
+  # there. Postgres sets a role's password once, when it initialises an empty
+  # data directory, and the volume outlives ~/.meercal: an `uninstall` that
+  # keeps the data, or a `make up` from a checkout that got there first, both
+  # leave a database whose password a freshly minted one does not open.
+  local db_password
+  db_password="$(env_get POSTGRES_PASSWORD)"
+  [ -n "$db_password" ] || db_password="$(rand 32)"
   umask 077
   cat > "$ENV_FILE" <<EOF
 # Written by meercal.sh. Container topology and credentials only; everything
@@ -364,12 +443,18 @@ MEERCAL_GID=$(id -g)
 MEERCAL_BIND=$2
 MEERCAL_PORT=$1
 
+# This machine's zone, handed to the containers: theirs is UTC, and a calendar
+# drawn in the wrong zone is wrong in a way that still looks like a calendar.
+# Only consulted while meercal.toml says timezone = "system"; a zone named
+# there wins. Change both if you move.
+TZ=$(host_zone)
+
 # The bundled Postgres. Published on loopback so that backups, psql and an
 # agent run from a checkout can reach it. 5433, not 5432: meerail's stack has
 # that one, and the two are expected to live on the same machine.
 MEERCAL_DB_PORT=$3
 POSTGRES_USER=meercal
-POSTGRES_PASSWORD=$(rand 32)
+POSTGRES_PASSWORD=$db_password
 POSTGRES_DB=meercal
 EOF
   chmod 600 "$ENV_FILE"
@@ -423,7 +508,9 @@ EOF
     else
       cat <<'EOF'
 
-# No accounts yet. Add one per calendar account and run `meercal.sh restart`:
+# No accounts yet. Add one per calendar account and run `meercal.sh restart`.
+# Uncomment the [[agent.account]] header along with the fields under it: on its
+# own each field is a key of [agent], which is nothing at all.
 #
 # [[agent.account]]
 # label = "Family"
@@ -517,7 +604,9 @@ cmd_setup() {
 
   head1 "How it should read"
   local timezone week_start interval
-  timezone="$(ask "Timezone (\"system\" follows this machine)" "system")"
+  # Offered as the name rather than as "system": the answer then says which
+  # zone it means, and goes on saying it if this ever runs somewhere else.
+  timezone="$(ask "Timezone" "$(host_zone)")"
   week_start=1
   ask_yn "Does your week start on Monday?" y || week_start=7
   interval="$(ask "Seconds between sync passes" "300")"
@@ -544,7 +633,7 @@ cmd_setup() {
   # is not a reason to abandon a configuration the user has just typed.
   compose pull || warn "Could not pull from Docker Hub; using whatever is already on this machine."
   head1 "Starting"
-  compose up -d
+  compose_up
   if ! wait_for_health; then
     head1 "Started, but the server is not answering"
     info "The containers are up and your configuration is written. Look at:"
@@ -587,9 +676,9 @@ wait_for_health() {
 
 # --- everyday commands --------------------------------------------------------
 
-cmd_start()   { require_configured; compose up -d; ok "Running: $(web_url)"; }
+cmd_start()   { require_configured; compose_up; ok "Running: $(web_url)"; }
 cmd_stop()    { require_configured; compose stop; ok "Stopped. \`start\` brings it back with everything intact."; }
-cmd_restart() { require_configured; compose up -d --force-recreate; ok "Restarted: $(web_url)"; }
+cmd_restart() { require_configured; compose_up --force-recreate; ok "Restarted: $(web_url)"; }
 cmd_logs()    { require_configured; compose logs -f --tail 200 ${1:+"$1"}; }
 cmd_psql()    { require_configured; compose exec db psql -U "$(pg_user)" -d "$(pg_db)"; }
 
@@ -627,6 +716,98 @@ cmd_sync() {
   head1 "One sync pass"
   compose run --rm agent python -m agent.main --once
   ok "Done."
+}
+
+# --- google -------------------------------------------------------------------
+#
+# The one account kind that cannot be set up by typing in things you already
+# know. Google turned off basic auth to their CalDAV endpoint years ago, and
+# switched off the old paste-this-code flow in 2022, so the only road to a
+# token runs through a browser and a redirect back to a port on this machine.
+#
+# The code that does that lives in the agent image, which is the point: an
+# install that has only this script still has a Python that can do OAuth, and
+# it is the same container that will use the token afterwards. The port is
+# published on loopback for the minute or two it takes and then goes away.
+cmd_google_auth() {
+  require_configured
+  need_tty
+  local label username client_id client_secret port block status
+
+  port="${1:-${MEERCAL_OAUTH_PORT:-8765}}"
+
+  head1 "A Google account, the full way"
+  info "This mints a refresh token and writes the account block for you."
+  info "It needs an OAuth client of your own, made once, in the Cloud Console:"
+  say ""
+  info "  1. ${B}console.cloud.google.com${R} → a project, any project"
+  info "  2. APIs & Services → Library → enable the ${B}CalDAV API${R}"
+  info "  3. APIs & Services → Google Auth Platform → ${B}Audience${R} → External,"
+  info "     then ${B}Publish app${R}"
+  info "  4. Google Auth Platform → Clients → Create client → ${B}Desktop app${R}"
+  say ""
+  info "It is free, it stays yours, and meercal is the only thing that ever uses it."
+  say ""
+  warn "Publish it. Do not leave it on Testing."
+  info "An app still in Testing gets refresh tokens that ${B}expire after seven days${R},"
+  info "so the calendar would go quiet every week and this would be a weekly chore."
+  info "Published-but-unverified is the right state for something only you use: at"
+  info "the consent screen Google warns that the app is unverified, and ${B}Advanced${R} →"
+  info "${B}Go to Meercal${R} goes through. The token then lasts until you revoke it."
+  say ""
+  if ! ask_yn "Have you got that client's ID and secret in front of you?" y; then
+    say ""
+    info "Come back when you do: ${B}$0 google-auth${R}."
+    info "Until then a ${B}secret .ics address${R} gives you the same calendars read-only,"
+    info "with no client at all: Calendar → Settings → the calendar → Integrate calendar."
+    return 0
+  fi
+
+  label="$(ask "A name for this account" "Google")"
+  username="$(ask_required "Your Google address:")"
+  client_id="$(ask_required "Client ID:")"
+  client_secret="$(ask_secret "Client secret:")"
+  say ""
+  info "Approving in the browser sends it to ${B}http://127.0.0.1:$port${R}, which is"
+  info "published from the container for as long as this is running. If that port"
+  info "is taken, stop and run ${B}$0 google-auth 8799${R} instead."
+
+  # By environment, not by argument: the process table is readable by everyone
+  # on the machine and a container's environment is not.
+  #
+  # stdout carries the account block and nothing else, the conversation goes to
+  # stderr, which is what lets this be captured while you still watch it happen.
+  # stdin is the terminal rather than this script's own, because under the
+  # `curl … | bash` form this script's stdin is its own remaining body.
+  status=0
+  block="$(MEERCAL_GOOGLE_CLIENT_ID="$client_id" MEERCAL_GOOGLE_CLIENT_SECRET="$client_secret" \
+    compose run --rm --no-deps -T \
+      -p "127.0.0.1:$port:$port" \
+      -e MEERCAL_GOOGLE_CLIENT_ID -e MEERCAL_GOOGLE_CLIENT_SECRET \
+      agent python -m agent.google_auth \
+        --port "$port" --label "$label" --username "$username" \
+    < /dev/tty)" || status=$?
+
+  # Trust nothing: an empty capture, a non-zero exit, or anything that is not
+  # the block it promised all mean the same thing, which is do not touch the
+  # configuration file.
+  if [ "$status" != 0 ] || [ -z "$block" ] || ! printf '%s' "$block" | grep -q '^\[\[agent.account\]\]'; then
+    die "No token was minted, and meercal.toml is untouched."
+  fi
+
+  printf '\n%s\n' "$block" >> "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+  say ""
+  ok "Written to $CONFIG_FILE:"
+  say ""
+  # Shown back with the two secrets cut short: enough to recognise, not enough
+  # to be worth the scrollback it now lives in.
+  printf '%s\n' "$block" \
+    | sed -e 's/^\(client_secret = "......\).*/\1…"/' -e 's/^\(refresh_token = "......\).*/\1…"/' \
+    | sed 's/^/  /'
+  say ""
+  ask_yn "Restart so the agent picks it up?" y && cmd_restart
+  info "${B}$0 test${R} then says whether Google actually lets it in."
 }
 
 cmd_demo() {
@@ -697,7 +878,7 @@ cmd_update() {
     chmod 600 "$ENV_FILE"
   fi
   compose pull
-  compose up -d
+  compose_up
   ok "Now on $latest: $(web_url)"
   info "The database migrates itself on first boot; nothing else to do."
 }
@@ -761,6 +942,7 @@ ${B}meercal${R}: a calendar for people who have too many calendars
   ${B}$0 logs${R} [svc]  follow the logs; svc is server, agent or db
   ${B}$0 test${R}        check every configured calendar account, change nothing
   ${B}$0 sync${R}        run one sync pass now and print what it did
+  ${B}$0 google-auth${R} mint a Google refresh token and add the account
   ${B}$0 config${R}      edit meercal.toml, then restart
   ${B}$0 demo${R}        fill it with demo calendars worth looking at
   ${B}$0 update${R}      pull the newest release and restart
@@ -800,6 +982,7 @@ main() {
     test|check)        cmd_test "$@" ;;
     sync)              cmd_sync "$@" ;;
     demo|seed)         cmd_demo "$@" ;;
+    google-auth|google) cmd_google_auth "$@" ;;
     config|edit)       cmd_config "$@" ;;
     update|upgrade)    cmd_update "$@" ;;
     backup)            cmd_backup "$@" ;;

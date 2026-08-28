@@ -121,24 +121,33 @@ def _sync_calendar(
     remote: RemoteCalendar,
     window: tuple[datetime, datetime],
 ) -> int:
-    # The ctag is the cheapest possible "has anything changed at all": one
-    # value for the whole collection. When it matches what we stored and we
-    # already hold a sync token, there is nothing to ask.
-    if remote.ctag and remote.ctag == cal.ctag and cal.sync_token:
-        return 0
-
-    listing = client.changes(cal.url, cal.sync_token)
-    deleted = [c for c in listing.changes if c.deleted]
-    changed = [c for c in listing.changes if not c.deleted]
-
-    # etags we already hold are the second filter: a full listing names every
-    # resource, and nearly all of them are the ones we fetched last time.
+    # etags we already hold are what makes an incremental pass cheap, and an
+    # empty calendar is the one case where holding none of them is not proof
+    # of anything: a token says "you have everything up to here", so a stored
+    # token beside no events at all would keep the calendar empty forever.
+    # That is a database restored under the agent, or a bug in the fetch path
+    # that advanced the token without storing what it fetched. Distrust the
+    # token there and list the whole collection; a calendar that really is
+    # empty pays one extra PROPFIND a pass for it.
     known = {
         row.url: row.etag
         for row in db.execute(
             select(Event.url, Event.etag).where(Event.calendar_id == cal.id)
         ).all()
     }
+
+    # The ctag is the cheapest possible "has anything changed at all": one
+    # value for the whole collection. When it matches what we stored and we
+    # already hold a sync token, there is nothing to ask.
+    if remote.ctag and remote.ctag == cal.ctag and cal.sync_token and known:
+        return 0
+
+    listing = client.changes(cal.url, cal.sync_token if known else "")
+    deleted = [c for c in listing.changes if c.deleted]
+    changed = [c for c in listing.changes if not c.deleted]
+
+    # Those same etags are the second filter: a full listing names every
+    # resource, and nearly all of them are the ones we fetched last time.
     wanted = [c.href for c in changed if not c.etag or known.get(c.href) != c.etag]
 
     for change in deleted:
@@ -153,7 +162,12 @@ def _sync_calendar(
         prune(db, cal, {c.href for c in changed})
 
     cal.sync_token = listing.sync_token or cal.sync_token
-    cal.ctag = remote.ctag
+    # Only when the server has actually run out of pages. Recording the ctag
+    # after a partial walk is what makes the shortcut above a trap: the
+    # collection would look caught up, and the rest of the backlog would wait
+    # for some unrelated change to move the ctag again.
+    if listing.drained:
+        cal.ctag = remote.ctag
     if stored or deleted:
         log(f"{cal.label}: +{stored} -{len(deleted)}")
     return stored

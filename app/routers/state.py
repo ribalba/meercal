@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from core.config import get_settings
 from core.database import get_db
-from core.models import Account, Calendar, CalendarSet, CalendarSetMember, Setting
+from core.models import CALENDAR_COLORS, Account, Calendar, CalendarSet, CalendarSetMember, Setting
 from core.version import VERSION
 from ..serialize import TZ, calendar_json
 from ..security import require_auth
@@ -44,6 +44,9 @@ def state(db: Session = Depends(get_db)) -> dict:
             "future_days": settings.horizon_future_days,
         },
         "meerail": bool(settings.meerail_database_url),
+        # The colours a new calendar is given, offered again in the sidebar so
+        # that a recoloured calendar still belongs to the same set of hues.
+        "calendar_colors": list(CALENDAR_COLORS),
         # Configured in meercal.toml; the panel offers them under Where.
         "places": [{"name": name, "value": value} for name, value in settings.places.items()],
         "accounts": [

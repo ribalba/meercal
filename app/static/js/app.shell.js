@@ -34,7 +34,18 @@ App.shell = (() => {
         toggle(cal.id, !cal.visible);
       },
     },
-      App.el("span", { class: "cal-dot", style: `--c:${cal.color}` }),
+      // The dot is the colour, so the dot is where the colour is changed. Its
+      // own button rather than a click on the row, which already means "show
+      // or hide this calendar", and wrapped so the target is a pointer's size
+      // rather than the ten pixels the dot is drawn at.
+      App.el("button", {
+        class: "cal-paint",
+        title: "Change this calendar's colour",
+        onclick: (ev) => {
+          ev.stopPropagation();
+          App.picker.colorMenu(ev.currentTarget, cal.color, (color) => setColor(cal.id, color));
+        },
+      }, App.el("span", { class: "cal-dot", style: `--c:${cal.color}` })),
       App.el("span", { class: "cal-name", text: cal.name }),
       cal.error ? App.el("span", { class: "cal-warn", text: "!", title: cal.error }) : null,
       App.el("button", {
@@ -98,10 +109,34 @@ App.shell = (() => {
       App.el("button", { class: "link", text: "All", onclick: () => setVisible(App.state.calendars.map((c) => c.id)) }),
       App.el("button", { class: "link", text: "None", onclick: () => setVisible([]) }),
       App.el("button", { class: "link", text: "New set…", onclick: () => App.sets.open(null) }),
+      App.el("button", {
+        class: "link", text: "Import…",
+        title: "Read an .ics file in. Dropping one on the window does the same.",
+        onclick: () => App.importer.choose(),
+      }),
       hidden ? App.el("span", { class: "muted small", text: `${hidden} hidden` }) : null,
     ));
 
     tree.replaceChildren(...nodes);
+  }
+
+  /* A calendar's colour, changed here and kept. Drawn first and written
+     after: the colour is the one thing in this program that is purely how it
+     looks, and looking at a round trip before it changes would be absurd. */
+  async function setColor(id, color) {
+    const cal = App.state.calendar(id);
+    if (!cal || cal.color === color) return;
+    cal.color = color;
+    renderSidebar();
+    repaint();
+    try {
+      await App.api.patch(`/api/calendars/${id}`, { color });
+    } catch (err) {
+      alert(`Could not change the colour: ${err.message}`);
+      await App.load.state();
+      renderSidebar();
+      repaint();
+    }
   }
 
   async function toggle(id, visible) {
@@ -165,8 +200,29 @@ App.shell = (() => {
     return T().monthName(c);
   }
 
+  /* The title, written as nodes so the month view's month can carry the same
+     numbered bubble the views themselves use.
+
+     Only the month view gets it. Every other view already names its months
+     inside the view -- the Ribbon in its sticky headers, the week and day
+     grids in their day labels, the year view in all twelve -- and the month
+     grid is the one that names its month nowhere but here. The week's title is
+     a *range*, so it would want two bubbles for one week, which is noise for a
+     number the day labels below it are already showing. */
+  function paintTitle() {
+    const el = document.getElementById("view-title");
+    const c = App.state.cursor;
+    if (App.state.view !== "month") {
+      el.replaceChildren(title());
+      el.removeAttribute("title");
+      return;
+    }
+    el.replaceChildren(App.monthNo(c), T().monthName(c));
+    el.title = `Press g ${c.getMonth() + 1} to jump to this month`;
+  }
+
   function paintToolbar() {
-    document.getElementById("view-title").textContent = title();
+    paintTitle();
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.view === App.state.view);
     });
@@ -174,6 +230,73 @@ App.shell = (() => {
     const note = document.getElementById("hidden-note");
     note.hidden = hidden === 0;
     note.textContent = `${hidden} calendar${hidden === 1 ? "" : "s"} hidden`;
+    paintZoneNote();
+  }
+
+  /* --- "these times are in the wrong zone" ----------------------------------
+
+     The server does all the zone arithmetic and sends wall-clock strings, which
+     is what keeps a calendar from disagreeing with itself twice a year. The
+     cost of that rule is that a server told the wrong zone draws a calendar
+     that is *entirely plausible* and entirely wrong: every event is there, at
+     the wrong time, and nothing on screen says so. It is easy to be told the
+     wrong zone, too -- a container's own system zone is UTC, so `timezone =
+     "system"` in Docker means UTC unless something passes the host's zone in.
+
+     The browser is the only thing in the room that knows where the reader
+     actually is, so it is the one that can notice. */
+
+  // The same instant as a wall clock in a named zone. `sv-SE` for a sortable
+  // "2026-08-25 14:00:00" rather than a locale's own idea of a date.
+  function wallIn(tz, at) {
+    try { return new Date(at).toLocaleString("sv-SE", { timeZone: tz }); } catch (e) { return null; }
+  }
+
+  /* How far apart two zones are at a given moment, in minutes. Both wall times
+     are parsed as if they were local, so whatever this browser's own offset is
+     cancels out and what is left is the gap between the two zones. */
+  function zoneGap(here, there, at) {
+    const a = wallIn(there, at);
+    const b = wallIn(here, at);
+    if (a === null || b === null) return null;
+    return Math.round((new Date(a.replace(" ", "T")) - new Date(b.replace(" ", "T"))) / 60000);
+  }
+
+  function zoneMismatch() {
+    let here = "";
+    try { here = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { /* older */ }
+    const there = App.state.timezone || "";
+    if (!here || !there) return null;
+    // Two probes, six months apart: the names differ far more often than the
+    // clocks do (UTC and Etc/UTC, Berlin and Amsterdam), and a zone that agrees
+    // today but keeps different daylight-saving rules is still worth saying.
+    const now = zoneGap(here, there, Date.now());
+    const later = zoneGap(here, there, Date.now() + 180 * 86400000);
+    if (now === null || later === null) return null;
+    if (now === 0 && later === 0) return null;
+    return { here, there, minutes: now };
+  }
+
+  function gapPhrase(minutes) {
+    if (!minutes) return "";
+    const off = Math.abs(minutes);
+    const hours = Math.floor(off / 60);
+    const rest = off % 60;
+    const size = hours ? (rest ? `${hours}h ${rest}m` : `${hours} hour${hours === 1 ? "" : "s"}`)
+                       : `${rest} minutes`;
+    return `, ${size} ${minutes < 0 ? "behind" : "ahead of"} yours`;
+  }
+
+  function paintZoneNote() {
+    const note = document.getElementById("zone-note");
+    if (!note) return;
+    const bad = zoneMismatch();
+    note.hidden = !bad;
+    if (!bad) return;
+    note.textContent = `Times in ${bad.there}`;
+    note.title = `Every time here is drawn in ${bad.there}${gapPhrase(bad.minutes)}, ` +
+                 `and this browser is in ${bad.here}. Set server.timezone in meercal.toml, ` +
+                 `or give the container a TZ; see docker-compose.yml.`;
   }
 
   // --- views ----------------------------------------------------------------
@@ -203,8 +326,8 @@ App.shell = (() => {
     try {
       await previous;
       if (mine !== showSeq) return;    // overtaken while queued; drop it
-      // The Ribbon is the only view that listens to the stage scrolling; take
-      // its handler off before another view is drawn into the same element.
+      // The Ribbon and the week grid both listen to the stage scrolling; take
+      // the handler off before another view is drawn into the same element.
       stage.onscroll = null;
       if (App.state.view === "ribbon") await App.ribbon.show(stage);
       else if (App.state.view === "month") await App.month.show(stage);
@@ -218,14 +341,16 @@ App.shell = (() => {
 
   async function setView(view) {
     if (!VIEWS[view]) return;
+    App.wheel.silence();
     App.state.view = view;
     App.load.prefs();
     await show();
   }
 
-  async function refresh() {
-    if (!App.state.range) return show();
-    await App.load.events(App.state.range.start, App.state.range.end);
+  /* Draw the range again from what is already loaded. A colour, a density, a
+     collapsed run of quiet days: none of them change which events are in the
+     window, and a fetch to redraw them would be a round trip to say nothing. */
+  function repaint() {
     if (App.state.view === "ribbon") App.ribbon.render();
     else if (App.state.view === "month") App.month.render();
     else if (App.state.view === "year") App.year.render();
@@ -233,21 +358,41 @@ App.shell = (() => {
     paintToolbar();
   }
 
-  function step(direction) {
+  async function refresh() {
+    if (!App.state.range) return show();
+    await App.load.events(App.state.range.start, App.state.range.end);
+    repaint();
+  }
+
+  /* One period forward or back. `fromWheel` says the wheel asked, which is the
+     one caller that must not silence the wheel: its own cooldown already
+     paces it, and the longer settle would make a deliberate scroll crawl. */
+  function step(direction, fromWheel) {
+    if (!fromWheel) App.wheel.silence();
     const c = App.state.cursor;
     if (App.state.view === "year") App.state.cursor = new Date(c.getFullYear() + direction, c.getMonth(), 1);
     else if (App.state.view === "month") App.state.cursor = T().addMonths(c, direction);
     else if (App.state.view === "day") App.state.cursor = T().addDays(c, direction);
     else if (App.state.view === "week") App.state.cursor = T().addDays(c, 7 * direction);
     else App.state.cursor = T().addDays(c, 14 * direction);
+    // The continuous views scroll to it; the paged ones redraw. Same journey
+    // either way, but in the Ribbon and the week grid the reader gets to see
+    // themselves make it.
     if (App.state.view === "ribbon") App.ribbon.goto(App.state.cursor).then(paintToolbar);
+    else if (App.state.view === "week" || App.state.view === "day") App.week.goto(App.state.cursor).then(paintToolbar);
     else show();
   }
 
+  /* Somewhere in particular: `t`, `g 1`-`g 12`, the date picker, a click on a
+     day in the year view. Silencing the wheel first is what makes `t` mean
+     today even when a trackpad flick is still coasting -- without it the tail
+     of a gesture that ended before the keypress stepped straight off again. */
   async function goTo(date, view) {
+    App.wheel.silence();
     App.state.cursor = T().day(date);
     if (view && view !== App.state.view) return setView(view);
     if (App.state.view === "ribbon") { await App.ribbon.goto(date); paintToolbar(); }
+    else if (App.state.view === "week" || App.state.view === "day") { await App.week.goto(date); paintToolbar(); }
     else await show();
   }
 
@@ -300,19 +445,26 @@ App.shell = (() => {
     // render handed each wheel event a fresh cooldown, and one flick walked
     // through half a year.
     App.wheel.attach(document.getElementById("stage"), (dir) => {
-      if (App.state.view !== "ribbon") step(dir);
+      // Only the month and the year are pages. The Ribbon and the week grid
+      // are one continuous scroll each, so there is no "next period" for a
+      // wheel to jump to -- reaching the next week *is* scrolling into it.
+      if (App.state.view === "month" || App.state.view === "year") step(dir, true);
     });
 
-    // The ribbon owns the date while it is scrolled, so the toolbar follows it
-    // rather than the other way round.
-    App.bus.on("ribbon-position", (date) => {
+    // A view that scrolls through time owns the date while it is being
+    // scrolled -- the Ribbon, and now the week and day grids -- so the toolbar
+    // follows it rather than the other way round.
+    App.bus.on("view-position", (date) => {
       App.state.cursor = date;
-      document.getElementById("view-title").textContent = title();
+      paintTitle();
     });
 
     await show();
     App.keys.init();
     App.search.init();
+    // Window-wide: a file can be dropped anywhere, including on a view that
+    // has not been drawn yet.
+    App.importer.init();
 
     // Nothing polls or refreshes while the window is behind another one; on the
     // way back the calendar is reloaded rather than believed. See app.power.js,
@@ -326,7 +478,7 @@ App.shell = (() => {
     if (App.reminders) App.reminders.start();
   }
 
-  return { init, show, setView, refresh, goTo, today, step, renderSidebar, setVisible,
+  return { init, show, setView, refresh, repaint, goTo, today, step, renderSidebar, setVisible,
            solo, applySet, closeDrawer, VIEWS };
 })();
 

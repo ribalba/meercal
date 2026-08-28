@@ -30,6 +30,7 @@
   --border: light-dark(#dededf, #313133);
   --border-strong: light-dark(#cbcbcd, #3a3a3c);
   --danger: #d70015;
+  --ok: light-dark(#1a7f37, #3fb950);
   --warning: light-dark(#96610a, #f5a623);
   --now: light-dark(#d70015, #ff453a);
   --shadow: 0 1px 3px light-dark(rgba(0,0,0,.10), rgba(0,0,0,.5)),
@@ -37,6 +38,11 @@
   --radius: 8px;
   --hover-tint: light-dark(rgba(0,0,0,.05), rgba(255,255,255,.06));
   --hover-tint-soft: light-dark(rgba(0,0,0,.035), rgba(255,255,255,.05));
+  /* The hours outside day_start..day_end in the week and day grids. A wash
+     rather than a colour: it has to read as "less of the same" over a plain
+     column and over today's tint alike, and anything with a hue of its own
+     would be a third thing on a grid that already has calendars in it. */
+  --off-hours: light-dark(rgba(0,0,0,.045), rgba(0,0,0,.22));
   --hover-tint-strong: light-dark(rgba(0,0,0,.06), rgba(255,255,255,.08));
   /* Weekend columns and rows. A tint rather than a different surface: the
      weekend is still part of the week, and a panel edge through the middle of
@@ -122,6 +128,16 @@ button { font-family: inherit; color: inherit; }
    keep the hue and lose the fill: still identifiable, plainly switched off. */
 .cal-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c);
   flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+/* The dot's hit area. The dot stays ten pixels because that is the size it
+   reads at in a list of twenty; the button around it is what a pointer is
+   actually aimed at. */
+.cal-paint { display: flex; align-items: center; border: 0; background: none; cursor: pointer;
+  padding: .3rem .15rem; margin: -.3rem -.05rem -.3rem -.15rem; border-radius: 5px; }
+.cal-paint:hover .cal-dot { box-shadow: 0 0 0 2px var(--sidebar), 0 0 0 3px var(--c); }
+
+/* The panel's calendar picker: the list, with the colour it is choosing. */
+.cal-pick { display: flex; align-items: center; gap: .5rem; }
+.cal-pick .in { flex: 1; min-width: 0; }
 .cal-row.off .cal-dot { background: transparent; box-shadow: inset 0 0 0 2px var(--c); opacity: .6; }
 .cal-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-warn { color: var(--danger); font-weight: 700; }
@@ -149,19 +165,51 @@ button { font-family: inherit; color: inherit; }
 .link { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: .78rem; padding: 0; }
 .link:hover { text-decoration: underline; }
 
-.shortcut-box { border-top: 1px solid var(--border); padding: .5rem .9rem .7rem;
-  font-size: .74rem; color: var(--text-muted); max-height: 34vh; overflow-y: auto; }
-/* Collapsed, the box shows the first nine bindings: everything you reach for
-   without thinking. `?` or the "n more" button below opens the rest. The count
-   is +11 because the title is a child too. */
-.shortcut-box:not(.open) .shortcut-row:nth-child(n+11) { display: none; }
+.shortcut-box { border-top: 1px solid var(--border); padding: .3rem .55rem .5rem;
+  font-size: .74rem; color: var(--text-muted); max-height: 34vh; display: flex;
+  flex-direction: column; }
+/* The header is the way out: once the keys are learned the box is furniture,
+   and furniture that cannot be moved out of the way is a nuisance. Clicking it
+   folds the sheet to this one line, and the choice is remembered. */
+.shortcut-head { display: flex; align-items: center; gap: .35rem; width: 100%;
+  border: 0; background: none; cursor: pointer; font: inherit; font-size: .66rem;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--sidebar-section); padding: .3rem .35rem; border-radius: 6px; }
+.shortcut-head:hover { background: var(--hover-tint); color: var(--text-muted); }
+.shortcut-glyph { display: flex; margin-left: auto; }
+/* Pointing down at the list it closes; flipped when closed, so it points back
+   up at the line it will reopen. */
+.shortcut-box.collapsed .shortcut-glyph { transform: rotate(180deg); }
+.shortcut-body { overflow-y: auto; padding: .15rem .35rem 0; }
+.shortcut-box.collapsed .shortcut-body { display: none; }
+/* Folded open, the box shows the first nine bindings: everything you reach for
+   without thinking. `?` or the "n more" button below opens the rest. */
+.shortcut-box:not(.open) .shortcut-row:nth-child(n+10) { display: none; }
 .shortcut-more { border: 0; background: none; padding: .25rem 0 0; cursor: pointer;
   color: var(--accent); font-size: .72rem; }
 .shortcut-more:hover { text-decoration: underline; }
-.shortcut-title { font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
-  font-size: .66rem; color: var(--sidebar-section); padding-bottom: .3rem; }
 .shortcut-row { display: flex; gap: .5rem; align-items: center; padding: .1rem 0; }
 .shortcut-row kbd { min-width: 2.1rem; text-align: center; }
+
+/* --- The month's number --- */
+/* A bubble beside a month's name, wherever a month is named: the toolbar's
+   title, the Ribbon's headers, the week and day labels, the picker, and the
+   year view's twelve. It is the number `g 1`-`g 12` takes, which is the whole
+   reason it is on screen -- so it is drawn as a key would be, quiet enough to
+   read past and boxed enough to read as a thing you could type.
+
+   `inline-grid` rather than `flex`, because one of its homes is the toolbar
+   title, and that has to stay an ordinary line of text for the ellipsis a
+   phone puts on it. */
+.month-no { display: inline-grid; place-items: center; vertical-align: middle;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 .25rem; border-radius: 999px;
+  background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-muted);
+  font-size: .68rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  letter-spacing: 0; text-transform: none; }
+/* The week grid's day labels have room for the number but not for the bubble
+   at full size, so it shrinks rather than being left out. */
+.month-no.sm { min-width: .95rem; height: .95rem; padding: 0 .18rem; font-size: .56rem;
+  border-radius: 999px; }
 
 /* --- Toolbar --- */
 .toolbar { display: flex; align-items: center; gap: .5rem; padding: .5rem .8rem;
@@ -169,8 +217,15 @@ button { font-family: inherit; color: inherit; }
 .toolbar button, .toolbar input, .toolbar label { -webkit-app-region: no-drag; }
 .view-title { font-size: 1.02rem; font-weight: 650; margin: 0 .3rem; letter-spacing: -.01em;
   white-space: nowrap; }
+.view-title .month-no { min-width: 1.15rem; height: 1.15rem; margin-right: .4rem; }
 .hidden-note { font-size: .74rem; color: var(--text-muted); background: var(--bg-elev);
   border: 1px solid var(--border); border-radius: 20px; padding: .1rem .5rem; }
+/* A calendar in the wrong zone still looks like a calendar, so this is the one
+   note that has to be read rather than glanced past: the warning colour, and
+   the whole explanation on hover. */
+.zone-note { font-size: .74rem; color: var(--warning); background: var(--bg-elev);
+  border: 1px solid var(--warning); border-radius: 20px; padding: .1rem .5rem;
+  cursor: help; }
 .nav-pair { display: flex; }
 .nav-pair .icon-btn { padding: .25rem .35rem; }
 
@@ -228,7 +283,7 @@ button { font-family: inherit; color: inherit; }
 .rb-month { position: sticky; top: 0; z-index: 6; background: var(--bg);
   border-bottom: 1px solid var(--border-strong); padding: .5rem .8rem .25rem;
   font-weight: 700; font-size: .8rem; letter-spacing: .02em; text-transform: uppercase;
-  color: var(--text-muted); }
+  color: var(--text-muted); display: flex; align-items: center; gap: .4rem; }
 
 .rb-gutter { display: flex; flex-direction: column; align-items: flex-end; gap: 0;
   padding: .4rem .55rem .4rem 0; border-right: 1px solid var(--border);
@@ -272,6 +327,14 @@ button { font-family: inherit; color: inherit; }
 /* TRANSP: a note in the time rather than a claim on it. Hatched so that the
    distinction survives being three pixels tall in a dense week. */
 .chip.free { background: repeating-linear-gradient(135deg, var(--c-weak) 0 6px, transparent 6px 12px); }
+/* An all-day chip is white on its calendar's colour -- but the hatch above
+   takes that colour away and leaves white text on the page's own background,
+   which is no text at all. Every birthday is all-day *and* TRANSP, so a whole
+   class of event was being drawn as an empty pill. Hand the ink back, the way
+   .wk-bar.free and .mo-bar.free already do. */
+.chip.all-day.free { color: var(--text); }
+.chip.all-day.free .chip-time, .chip.all-day.free .chip-where,
+.chip.all-day.free .chip-mark { color: var(--text-faint); }
 .chip.clash { box-shadow: 0 0 0 1px var(--danger) inset; }
 .chip.cancelled .chip-title { text-decoration: line-through; opacity: .7; }
 
@@ -292,9 +355,16 @@ button { font-family: inherit; color: inherit; }
    wrap, and the view did not either. The title runs down it, and stays on screen
    while the bar does: `sticky` is what turns a colour into "you are on day 4
    of 19". */
+/* `clip-path`, not `overflow: hidden`, and that is the whole trick: an
+   ancestor with a clipping overflow *is* the scrollport its descendants stick
+   to, so the sticky label below was sticking to a box that never scrolls and
+   rode off the top of the screen with the bar's first day. clip-path keeps the
+   label inside a bar shorter than its own title without claiming to be a
+   scroller, which leaves #stage as the scrollport, which is the one that
+   actually moves. */
 .span { position: relative; margin: 1px 3px 1px 1px; border-radius: 7px;
   background: var(--c-weak); border: 1px solid var(--c); border-left-width: 3px;
-  cursor: pointer; overflow: hidden; min-height: 1.5rem; }
+  cursor: pointer; clip-path: inset(0 round 7px); min-height: 1.5rem; }
 .span:hover { background: var(--c); }
 .span:hover .span-label { color: #fff; }
 .span.free { background: repeating-linear-gradient(135deg, var(--c-weak) 0 5px, transparent 5px 10px); }
@@ -305,7 +375,11 @@ button { font-family: inherit; color: inherit; }
   mask-image: linear-gradient(to top, transparent 0, #000 18px); }
 .span.open-top.open-bottom {
   mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%); }
-.span-label { position: sticky; top: 8px; writing-mode: vertical-rl; text-orientation: mixed;
+/* Below the month header, not under it: the header is sticky at the top of the
+   same scroller and opaque, so a label that stopped at the very top had its
+   first few letters swallowed. --rb-head is the header's measured height,
+   written by the Ribbon after each render. */
+.span-label { position: sticky; top: calc(var(--rb-head, 2.1rem) + 6px); writing-mode: vertical-rl; text-orientation: mixed;
   display: flex; align-items: center; gap: .5rem; padding: .45rem .15rem; font-size: .74rem;
   color: var(--text); max-height: calc(100vh - 12rem); overflow: hidden; }
 .span-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -315,11 +389,68 @@ button { font-family: inherit; color: inherit; }
 .span:hover .span-count { color: rgba(255,255,255,.85); }
 
 /* =========================================================================
+   Somebody else is on it
+   =========================================================================
+
+   One figure, drawn wherever an event is drawn: the event has guests, or it
+   arrived as an invitation. It is an aside about the event and not a second
+   title, so it takes the quiet ink every view already uses for its marks
+   (`currentColor` throughout, which is what lets the same span sit on a pale
+   chip and on a bar filled with the calendar's colour without being told
+   twice). `flex: 0 0 auto` is the load-bearing part: in every one of these
+   containers the title is the item that gives way, and without it the figure
+   is what gets squeezed to nothing in a narrow column. */
+.guest-mark { display: inline-flex; align-items: center; flex: 0 0 auto;
+  color: var(--text-faint); opacity: .9; }
+.guest-mark svg { display: block; }
+
+/* The Ribbon's pills line up on the baseline; an icon has none worth using. */
+.chip .guest-mark { align-self: center; }
+/* The count, back where it belongs: hard against the figure, so it reads as
+   "three of these" rather than as a stray digit at the end of the pill. */
+.chip-guest-n { margin-left: -.25rem; }
+
+/* A span's label is set sideways, and its Latin letters are turned with it.
+   The figure is turned the same way rather than left upright: upright next to
+   rotated text is the one orientation that reads as a mistake, and the label
+   is meant to be taken in with the head tilted, all of it at once. An SVG is
+   a replaced box and so is not turned by the writing mode on its own. */
+.span-guests { transform: rotate(90deg); }
+.span:hover .guest-mark { color: rgba(255,255,255,.85); }
+
+/* In the week grid the block is a column when it is tall and a row when it is
+   too short for two lines, so there is no one place in the flow that works for
+   both. The corner is that place. `.has-guests` hands back the room it takes,
+   which is what keeps the title ellipsising before the figure and not
+   underneath it. */
+.wk-event.has-guests { padding-right: 1rem; }
+.wk-guests { position: absolute; top: .12rem; right: .22rem; }
+
+/* The bars are plain text buttons with an ellipsis on them, so the figure goes
+   in front of the title where the ellipsis cannot reach it. */
+.wk-bar-guests, .mo-bar-guests { vertical-align: -2px; margin-right: .15rem;
+  color: inherit; opacity: .85; }
+.wk-bar.free .guest-mark, .mo-bar.free .guest-mark { color: var(--text); }
+
+.mo-guests { margin-left: auto; }
+.yr-guests { margin-left: .3rem; }
+
+
+/* =========================================================================
    Week / Day
    ========================================================================= */
 
-.week { display: flex; flex-direction: column; overflow: hidden; }
-.wk-fixed { background: var(--bg); border-bottom: 1px solid var(--border-strong); }
+/* One scroller, with the weeks drawn one under the other in it: #stage does
+   the scrolling, exactly as it does for the Ribbon, and a week is a block in
+   the column rather than a page that replaces the last one. */
+.week { background: var(--bg); }
+.wk-period { position: relative; }
+/* The labels and the all-day strip, stuck to the top of the screen for as long
+   as their own week is on it -- `sticky` is constrained to the block it is in,
+   so the next week's labels push these off rather than appearing over them,
+   and the handover is the thing that reads as one continuous scroll. */
+.wk-fixed { position: sticky; top: 0; z-index: 6; background: var(--bg);
+  border-bottom: 1px solid var(--border-strong); }
 .wk-head { display: grid; grid-template-columns: var(--gutter-w) repeat(var(--cols, 7), 1fr); }
 .wk-corner { font-size: .68rem; color: var(--text-faint); display: grid; place-items: center; }
 .wk-daylabel { display: flex; flex-direction: column; align-items: center; padding: .35rem 0 .3rem;
@@ -329,6 +460,14 @@ button { font-family: inherit; color: inherit; }
 .wk-daylabel.today .wk-dnum { background: var(--accent); color: #fff; border-radius: 50%;
   width: 1.9rem; height: 1.9rem; display: grid; place-items: center; }
 .wk-daylabel.today .wk-dow { color: var(--accent); }
+/* Which month, on the first of it and at the top of each block. With the weeks
+   running on without a break, a bare "1" stops saying where in the year you
+   have scrolled to. */
+.wk-mon { display: flex; align-items: center; gap: .22rem;
+  font-size: .6rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-faint); margin-top: .05rem; }
+.wk-daylabel.today .wk-mon { color: var(--accent); }
+.wk-daylabel.today .month-no { border-color: var(--accent); color: var(--accent); }
 
 /* The all-day strip. Bars run across the columns without breaking, and an
    arrow says the thing continues past the edge of the week, which is the one
@@ -349,7 +488,6 @@ button { font-family: inherit; color: inherit; }
 .wk-bar.open-right { border-top-right-radius: 0; border-bottom-right-radius: 0;
   background-image: linear-gradient(to left, rgba(0,0,0,.25), transparent 18px); }
 
-.wk-scroll { flex: 1; overflow-y: auto; }
 .wk-body { display: grid; grid-template-columns: var(--gutter-w) repeat(var(--cols, 7), 1fr);
   position: relative; }
 .wk-hours { display: flex; flex-direction: column; }
@@ -363,6 +501,13 @@ button { font-family: inherit; color: inherit; }
 .wk-col.today { background: var(--today-tint);
   box-shadow: inset 1px 0 0 var(--today-line), inset -1px 0 0 var(--today-line); }
 .wk-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+/* Outside the hours you keep. Still the grid -- the rules run through it, an
+   event in it is drawn like any other, and a drag across it means what it means
+   anywhere else, which is why it is deaf to the pointer. */
+.wk-off { position: absolute; left: 0; right: 0; pointer-events: none;
+  background: var(--off-hours); }
+.wk-hour.off span { opacity: .5; }
+
 .wk-event { position: absolute; border: 0; border-left: 3px solid var(--c); background: var(--c-weak);
   border-radius: 5px; padding: .1rem .3rem; font-size: .74rem; text-align: left; cursor: pointer;
   overflow: hidden; display: flex; flex-direction: column; line-height: 1.15; }
@@ -377,6 +522,39 @@ button { font-family: inherit; color: inherit; }
 .wk-now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--now); z-index: 4; }
 .wk-now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px;
   border-radius: 50%; background: var(--now); }
+
+/* --- drawing on the grid --- */
+/* The two ends of an event, as targets of their own. Six pixels: enough for a
+   pointer, and little enough that the middle of even a half-hour meeting is
+   still the part you grab to move it. Marked only on hover, because a grid of
+   events each wearing two handles is a grid of handles. */
+.wk-grip { position: absolute; left: 0; right: 0; height: 6px; cursor: ns-resize; }
+.wk-grip.top { top: 0; }
+.wk-grip.bottom { bottom: 0; }
+.wk-event:hover .wk-grip::after { content: ""; position: absolute; left: 50%; width: 22px;
+  height: 2px; margin-left: -11px; border-radius: 2px; background: var(--c); opacity: .5; }
+.wk-grip.top::after { top: 1px; }
+.wk-grip.bottom::after { bottom: 1px; }
+
+/* The event under the pointer, while it is being moved or resized: lifted off
+   the grid and given the full width of its day, because during the drag it is
+   the only thing in that column that matters. */
+.wk-event.wk-dragging { z-index: 5; box-shadow: var(--shadow); opacity: .95;
+  filter: none; cursor: grabbing; }
+/* A drag reads as one gesture across the whole window: no text selection, and
+   the same cursor wherever the pointer wanders to. */
+body.dragging-time { cursor: grabbing; user-select: none; }
+body.dragging-time .wk-event, body.dragging-time .wk-col { cursor: grabbing; }
+
+/* The new event, while it is still only a sweep of the mouse. Dashed and in
+   the accent rather than a calendar's colour: which calendar it lands in is
+   the panel's first question, and this must not appear to have answered it. */
+.wk-ghost { position: absolute; left: 0; width: calc(100% - 3px); z-index: 5;
+  pointer-events: none; border: 1px dashed var(--accent); border-radius: 5px;
+  background: var(--accent-weak); display: flex; align-items: flex-start;
+  padding: .1rem .3rem; overflow: hidden; }
+.wk-ghost-time { font-size: .68rem; font-variant-numeric: tabular-nums; color: var(--accent);
+  font-weight: 600; white-space: nowrap; }
 
 /* =========================================================================
    Month
@@ -516,12 +694,91 @@ textarea.in { resize: vertical; }
 .place:hover { border-color: var(--accent); color: var(--accent); }
 .place.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* The invitation, one bubble per person.
+
+   The box is a text field that happens to be full of people: same border, same
+   focus ring, and a click anywhere in it puts the caret in the input, so the
+   only thing that changed from the field this replaced is that an address
+   becomes a thing you can see the state of and take back.
+
+   The reply is a mark, not a colour on the whole bubble. Five people in five
+   states would otherwise turn the panel into a traffic light, and the one
+   state anyone is actually looking for -- yes -- is the one that gets the
+   drawn check. A no is a struck-through name, which cannot be mistaken for the
+   × that removes it. */
+.tokens { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem;
+  padding: .22rem .28rem; cursor: text; }
+.tokens:focus-within { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
+.tokens.bad { border-color: var(--danger); }
+/* Read-only: the guest list is still worth reading, so it keeps its bubbles and
+   its replies and loses only the border that says "type here". */
+.tokens:not(:focus-within):has(.token-in[hidden]) { border-color: transparent; padding-left: 0; cursor: default; }
+.token-in { flex: 1 1 8rem; min-width: 6rem; border: 0; background: none; color: var(--text);
+  font: inherit; font-size: .88rem; padding: .16rem .22rem; }
+.token-in:focus { outline: none; }
+
+.tok { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%;
+  font-size: .78rem; padding: .1rem .16rem .1rem .45rem;
+  border: 1px solid var(--border-strong); border-radius: 999px;
+  background: var(--bg-elev); color: var(--text); }
+.tok-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A dot the size of the check that replaces it, so a bubble is the same width
+   whatever the answer was and a list of them does not jump about as replies
+   land. */
+.tok-mark { display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 11px; height: 11px; border-radius: 999px;
+  border: 1px solid var(--text-faint); box-sizing: border-box; }
+/* The check is drawn at 11px from a 24-unit grid, which scales the shared
+   1.7 stroke down to under a pixel and leaves it looking like a smudge. Set
+   here rather than in the icon, where the weight is right at the sizes every
+   other button uses it at. */
+.tok.st-yes .tok-mark { border: 0; color: var(--ok); }
+.tok-mark svg { stroke-width: 2.8; overflow: visible; }
+.tok.st-no .tok-mark { background: var(--danger); border-color: var(--danger); }
+.tok.st-no .tok-name { text-decoration: line-through; color: var(--text-muted); }
+.tok.st-maybe .tok-mark { background: var(--warning); border-color: var(--warning); }
+/* NEEDS-ACTION: hollow, and left that way. Nobody has answered yet, and an
+   empty circle is the only honest thing to draw for that. */
+.tok.st-wait .tok-mark { background: transparent; }
+.tok-x { display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 16px; height: 16px; padding: 0; border: 0; border-radius: 999px;
+  background: none; color: var(--text-faint); cursor: pointer; }
+.tok-x:hover { background: var(--hover-tint-strong); color: var(--danger); }
+.tok-x:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+/* A finger is not a mouse pointer. The × is the one control here that is easy
+   to miss and expensive to hit by accident, so on a touch screen it gets a
+   target worth the name and the bubble grows to hold it. */
+@media (pointer: coarse) {
+  .tok { font-size: .82rem; padding: .18rem .2rem .18rem .55rem; }
+  .tok-x { width: 22px; height: 22px; }
+}
+
 .people { display: flex; flex-direction: column; gap: 1px; }
 .person { display: flex; align-items: baseline; gap: .5rem; border: 0; background: none;
   padding: .25rem .4rem; border-radius: 6px; cursor: pointer; text-align: left; font-size: .82rem; }
 .person:hover { background: var(--hover-tint); }
 .person-mail { color: var(--text-muted); font-size: .76rem; }
 .person-count { margin-left: auto; color: var(--text-faint); font-size: .7rem; }
+
+/* Who normally comes with the people already invited, from meerail's
+   co-recipient graph. Dashed rather than solid: these are offers nobody asked
+   for, and they should not read as the chips under Where, which are settings
+   the user wrote down themselves. The row disappears when it has nothing left
+   to say, so it never sits there empty taking up the panel's height. */
+.with-row:empty { display: none; }
+.with-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; padding-top: .35rem; }
+.with-label { color: var(--text-faint); font-size: .72rem; }
+.with-chip { display: inline-flex; align-items: center; gap: .25rem; max-width: 100%;
+  font: inherit; font-size: .76rem; padding: .12rem .55rem; cursor: pointer;
+  border: 1px dashed var(--border-strong); border-radius: 999px;
+  background: transparent; color: var(--text-muted); }
+.with-chip:hover { border-style: solid; border-color: var(--accent); color: var(--accent); }
+.with-plus { color: var(--accent); font-weight: 600; }
+.with-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* meerail is configured and did not answer. Worth a line: an unreachable mail
+   database and an empty address book look the same from a text field. */
+.people-note { padding-top: .3rem; font-size: .72rem; color: var(--warning); }
 
 .fatal { padding: 3rem; max-width: 40rem; }
 .fatal h2 { margin: 0 0 .5rem; }
@@ -565,6 +822,33 @@ textarea.in { resize: vertical; }
 .pick { display: flex; align-items: center; gap: .5rem; padding: .22rem .35rem;
   border-radius: 5px; cursor: pointer; font-size: .86rem; }
 .pick:hover { background: var(--hover-tint); }
+
+/* =========================================================================
+   Import: the drop target, and the dialog that asks where the file goes
+   ========================================================================= */
+
+/* Over everything, and deaf to the pointer. A drop target that captured the
+   drag would sit between the file and the window it is being dropped on, and
+   the drop event would never reach the handler that wants it. */
+.drop-zone { position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  display: grid; place-items: center; padding: 2rem;
+  background: light-dark(rgba(255,255,255,.72), rgba(0,0,0,.6)); }
+.drop-card { display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  padding: 2.2rem 3rem; border-radius: 14px; background: var(--bg);
+  border: 2px dashed var(--accent); box-shadow: var(--shadow); text-align: center; }
+.drop-title { font-size: 1.1rem; font-weight: 650; }
+.drop-sub { font-size: .85rem; color: var(--text-muted); }
+
+/* The file's own name, so not upper-cased the way `.fld-label` is. */
+.import-file { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-summary { font-size: .82rem; color: var(--text-muted); }
+.fld-hint.warn { color: var(--warning); }
+
+/* The last row is "New calendar" and its name field, which has to be the wide
+   part of the row rather than a full-width input squashing the label out. */
+.import-targets .pick { padding: .3rem .35rem; }
+.import-targets .pick-fixed { flex: none; }
+.import-targets .in { flex: 1; width: auto; min-width: 7rem; padding: .2rem .4rem; }
 
 /* =========================================================================
    Filter help
@@ -628,12 +912,7 @@ textarea.in { resize: vertical; }
 .yr-month-name { display: flex; align-items: center; gap: .4rem; border: 0; background: none;
   font-weight: 620; font-size: .86rem; cursor: pointer; padding: 0 0 .3rem; color: var(--text); }
 .yr-month-name:hover { color: var(--accent); }
-/* The month number, which is also what `g 1`–`g 12` takes. */
-.yr-month-no { display: grid; place-items: center; min-width: 1.25rem; height: 1.25rem;
-  padding: 0 .25rem; border-radius: 999px; background: var(--bg-elev);
-  border: 1px solid var(--border); color: var(--text-muted); font-size: .68rem;
-  font-weight: 700; font-variant-numeric: tabular-nums; }
-.yr-month-name:hover .yr-month-no { border-color: var(--accent); color: var(--accent); }
+.yr-month-name:hover .month-no { border-color: var(--accent); color: var(--accent); }
 .yr-dows { display: grid; grid-template-columns: repeat(7, 1fr); font-size: .6rem;
   color: var(--text-faint); text-align: center; padding-bottom: .15rem; }
 .yr-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
@@ -672,7 +951,8 @@ textarea.in { resize: vertical; }
 .pop { position: fixed; z-index: 200; background: var(--bg); border: 1px solid var(--border-strong);
   border-radius: 10px; box-shadow: var(--shadow); padding: .5rem; }
 .pop-head { display: flex; align-items: center; gap: .25rem; padding: .1rem .2rem .45rem; }
-.pop-month { flex: 1; font-weight: 650; font-size: .9rem; }
+.pop-month { flex: 1; font-weight: 650; font-size: .9rem;
+  display: flex; align-items: center; gap: .35rem; }
 .pop-nav { border: 0; background: none; cursor: pointer; color: var(--text-muted);
   font-size: 1.05rem; line-height: 1; padding: .1rem .4rem; border-radius: 6px; }
 .pop-nav:hover { background: var(--hover-tint); color: var(--text); }
@@ -696,6 +976,22 @@ textarea.in { resize: vertical; }
 .pop-time:hover { background: var(--hover-tint); }
 .pop-time.on { background: var(--accent-weak); font-weight: 620; }
 .pop-dur { color: var(--text-muted); font-size: .74rem; }
+
+/* The calendar palette. Five by two, at a size that can be aimed at, with the
+   current colour ringed rather than ticked: a tick drawn on a colour is a
+   contrast problem in one of the ten. */
+.pop-colors { display: grid; grid-template-columns: repeat(5, 1.7rem); gap: .35rem; padding: .1rem; }
+.pop-color { width: 1.7rem; height: 1.7rem; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.pop-color:hover { transform: scale(1.12); }
+.pop-color.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--c); }
+/* The way out of the ten. A colour well, drawn as one more swatch: it is the
+   same decision, with the system's picker behind it. */
+.pop-color-any { width: 1.7rem; height: 1.7rem; padding: 0; border: 1px dashed var(--border-strong);
+  border-radius: 50%; background: none; cursor: pointer; }
+.pop-color-any::-webkit-color-swatch-wrapper { padding: 2px; }
+.pop-color-any::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.pop-color-any::-moz-color-swatch { border: 0; border-radius: 50%; }
 
 
 /* =========================================================================
@@ -757,7 +1053,7 @@ textarea.in { resize: vertical; }
   .toolbar { flex-wrap: wrap; gap: .35rem; padding: .45rem .6rem; }
   .view-title { font-size: .95rem; margin: 0 .2rem; flex: 1; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hidden-note { order: 5; }
+  .hidden-note, .zone-note { order: 5; }
   /* Full width on its own line, and scrollable if even that is not enough:
      five views on a 320px screen do not fit any other way. */
   .view-switch { order: 6; width: 100%; overflow-x: auto; scrollbar-width: none; }
@@ -783,11 +1079,11 @@ textarea.in { resize: vertical; }
   :root { --gutter-w: 52px; --lane-w: 20px; }
   .rb-day { padding: .4rem .5rem .4rem .45rem; }
 
-  /* A week of seven columns does not fit a phone, so it scrolls sideways with
-     the header and the strip kept in step above it: better than squeezing
-     seven columns into 44px each, where the titles say nothing. */
-  .week .wk-fixed, .week .wk-scroll { overflow-x: auto; }
-  .wk-head, .wk-strip, .wk-body { min-width: 680px; }
+  /* A week of seven columns does not fit a phone, so it scrolls sideways:
+     better than squeezing seven columns into 44px each, where the titles say
+     nothing. The header cannot drift out of step with the grid because there
+     is only one scroller now -- #stage moves both of them, in both directions. */
+  .wk-period { min-width: 680px; }
 
   .yr-band-title, .yr-row-label { width: 7.5rem; font-size: .74rem; }
   .yr-ruler-cell { font-size: .55rem; }

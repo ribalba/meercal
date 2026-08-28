@@ -92,6 +92,7 @@ App.month = (() => {
             App.el("span", { class: "mo-dot" }),
             App.el("span", { class: "mo-time", text: T().time(e.startAt) }),
             App.el("span", { class: "mo-title", text: e.title }),
+            App.guests.mark(e, "mo-guests", 10),
           ));
         });
         if (dayEvents.length > room) {
@@ -119,7 +120,8 @@ App.month = (() => {
                  `grid-column:${c0 + 1} / ${c1 + 2};grid-row:${e.lane + 1}`,
           title: `${e.title} · ${e.days} days`,
           onclick: (ev) => { ev.stopPropagation(); App.editor.open(e, ev.currentTarget); },
-        }, App.el("span", { text: from < 0 ? `… ${e.title}` : e.title })));
+        }, App.guests.mark(e, "mo-bar-guests", 10),
+           App.el("span", { text: from < 0 ? `… ${e.title}` : e.title })));
       });
       // The lane count goes on the week, not on the bar layer: the cells read
       // it too, and reserve exactly that much room under their date number.

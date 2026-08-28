@@ -237,6 +237,34 @@
 
         <article class="landing-card">
           <div class="landing-card-body">
+            <div class="landing-card-icon"><i class="file code outline icon"></i></div>
+            <h3>Full iCalendar, kept whole</h3>
+            <p>
+              One RFC 5545 parser for everything that arrives, whether it came
+              from CalDAV, from Google, from a subscribed <code>.ics</code> feed
+              or out of an email: timed and all-day events, <code>DURATION</code>
+              as well as <code>DTEND</code>, <code>TZID</code>, UTC and floating
+              times, <code>RRULE</code> with <code>RDATE</code> and
+              <code>EXDATE</code>, the <code>RECURRENCE-ID</code> overrides that
+              move one occurrence of a series, attendees and their
+              <code>PARTSTAT</code>, <code>ORGANIZER</code>,
+              <code>CATEGORIES</code>, <code>TRANSP</code>, <code>STATUS</code>
+              and <code>VALARM</code>.
+            </p>
+            <p>
+              Writing back is the half most programs get wrong. meercal keeps
+              the text the server sent and <strong>patches the properties you
+              changed into it</strong>, rather than parsing and re-serialising
+              the event: the attachment, the conferencing block and the
+              <code>X-</code> properties your phone put there are still there
+              afterwards, because they were never rewritten. That is the
+              difference between editing a calendar and retyping it.
+            </p>
+          </div>
+        </article>
+
+        <article class="landing-card">
+          <div class="landing-card-body">
             <div class="landing-card-icon"><i class="shield alternate icon"></i></div>
             <h3>Your passwords stay on your machine</h3>
             <p>
@@ -364,9 +392,12 @@
               things up: bars run continuously across the week, and a bar that
               continues past the edge says so. The <strong>year</strong> opens
               with every long event of the year laid across one twelve-month
-              axis. The wheel pages between them: in the week and day grids it
-              scrolls the hours first and pages when it runs out. Light and
-              dark, following the system or pinned.
+              axis. The week and day grids are <strong>one continuous
+              scroll</strong>: weeks are drawn one under the other, each week's
+              day labels stick to the top of the screen until the next week's
+              push them off, and the date in the toolbar follows the scroll.
+              Nothing pages and nothing swaps under a header that stayed still.
+              Light and dark, following the system or pinned.
             </p>
           </div>
         </article>

@@ -89,7 +89,9 @@ App.picker = (() => {
     function draw() {
       cal.replaceChildren(
         App.el("div", { class: "pop-head" },
-          App.el("span", { class: "pop-month", text: T().monthName(shown) }),
+          App.el("span", { class: "pop-month" },
+            App.monthNo(shown),
+            App.el("span", { text: T().monthName(shown) })),
           App.el("button", { class: "pop-nav", text: "‹", title: "Previous month", type: "button",
             onclick: (e) => { e.stopPropagation(); shown = T().addMonths(shown, -1); draw(); } }),
           App.el("button", { class: "pop-nav", text: "›", title: "Next month", type: "button",
@@ -152,5 +154,33 @@ App.picker = (() => {
     if (selected) list.scrollTop = Math.max(selected.offsetTop - 90, 0);
   }
 
-  return { dateMenu, timeMenu, close, label, duration, minutesOf, STEP_MIN };
+  // --- colours -------------------------------------------------------------
+
+  /* The ten a calendar can be, and a way out of them. The ten are the ones the
+     server gives new calendars (core/models.py), so a recoloured calendar
+     still belongs to the same set of hues and the sidebar keeps looking like
+     one list; the well beside them is for the person whose team colour is not
+     one of ten. */
+  function colorMenu(anchor, current, onPick) {
+    const box = popover(anchor, App.el("div", { class: "pop-colors" }));
+    const list = box.firstChild;
+    const now = (current || "").toLowerCase();
+    (App.state.calendarColors || []).forEach((hex) => {
+      list.append(App.el("button", {
+        class: "pop-color" + (hex.toLowerCase() === now ? " on" : ""),
+        style: `--c:${hex}`,
+        type: "button",
+        title: hex,
+        onclick: () => { close(); onPick(hex); },
+      }));
+    });
+    const any = App.el("input", { type: "color", class: "pop-color-any", value: current || "#1d6ff2",
+                                  title: "Any other colour" });
+    // `change`, not `input`: the system's colour picker streams a value while
+    // the pointer moves across it, and one request per hue is one too many.
+    any.addEventListener("change", () => { close(); onPick(any.value); });
+    list.append(any);
+  }
+
+  return { dateMenu, timeMenu, colorMenu, close, label, duration, minutesOf, STEP_MIN };
 })();

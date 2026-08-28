@@ -22,7 +22,7 @@ from core.database import get_db
 from core.models import Calendar, Event, Occurrence
 from core.timeutil import utcnow
 from ..query import parse_query
-from ..serialize import TZ, occurrence_json
+from ..serialize import TZ, occurrence_json, own_addresses
 from ..security import require_auth
 
 router = APIRouter(prefix="/api", tags=["search"], dependencies=[Depends(require_auth)])
@@ -76,7 +76,8 @@ def search(
     ahead = side(True, max(1, limit * 2 // 3))
     behind = side(False, limit - len(ahead))
     calendars = {c.id: c for c in db.execute(select(Calendar)).scalars().all()}
-    hits = [occurrence_json(o, calendars.get(o.calendar_id)) for o in (*ahead, *behind)]
+    mine = own_addresses(db)
+    hits = [occurrence_json(o, calendars.get(o.calendar_id), mine) for o in (*ahead, *behind)]
     for hit, occ in zip(hits, (*ahead, *behind)):
         cal = calendars.get(occ.calendar_id)
         hit["calendar"] = cal.label if cal else ""

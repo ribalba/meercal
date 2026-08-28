@@ -70,6 +70,13 @@ def _vevent(event: Event) -> IEvent:
         if not email:
             continue
         params = {"CN": person.get("name", "") or email, "PARTSTAT": person.get("status", "NEEDS-ACTION")}
+        if person.get("role"):
+            params["ROLE"] = person["role"]
+        # Whatever else the server had on that line: CUTYPE=RESOURCE is how a
+        # room says it is a room, and DELEGATED-TO is half of a delegation that
+        # means nothing without its other half. The panel owns this property
+        # now (see _OWNED), so anything not carried here is anything lost.
+        params.update(person.get("params") or {})
         ve.add("attendee", f"mailto:{email}", parameters=params)
     return ve
 
@@ -96,7 +103,76 @@ def event_to_ics(event: Event) -> str:
 
 # Properties an edit here may replace in text the server sent. Anything not
 # listed is left exactly as it arrived.
-_PATCHABLE = ("SUMMARY", "LOCATION", "DESCRIPTION", "DTSTART", "DTEND", "RRULE", "STATUS", "TRANSP")
+_PATCHABLE = ("SUMMARY", "LOCATION", "DESCRIPTION", "DTSTART", "DTEND", "RRULE",
+              "STATUS", "TRANSP", "ATTENDEE")
+
+# Of those, the ones the panel owns *completely*: the original lines go even
+# when the edit has none to put back. Every other patchable property is
+# replaced only when there is something to replace it with, so an empty
+# LOCATION leaves the server's alone -- but an invitation with nobody on it is
+# a real answer, and it is the only way removing the last guest can stick.
+_OWNED = ("ATTENDEE",)
+
+
+def _unfold(text: str) -> list[str]:
+    """The logical lines of an iCalendar body.
+
+    RFC 5545 folds anything past 75 octets onto a continuation line beginning
+    with a space, and a patch that matches property names against *physical*
+    lines does not see that: the tail of a folded DESCRIPTION looks like a line
+    of its own, so replacing the property drops the head and leaves the orphan
+    glued to the front of whatever comes next. Long descriptions and ATTENDEE
+    lines carrying a CN both fold as a matter of course, so this is the common
+    case and not the edge one.
+    """
+    lines: list[str] = []
+    for line in text.splitlines():
+        if lines and line[:1] in (" ", "\t"):
+            lines[-1] += line[1:]
+        else:
+            lines.append(line)
+    return lines
+
+
+def _fold(line: str) -> list[str]:
+    """One logical line back into physical ones, counted the way the spec
+    counts: 75 octets, the continuation's leading space included, and never a
+    cut through the middle of a UTF-8 character."""
+    raw = line.encode("utf-8")
+    if len(raw) <= 75:
+        return [line]
+    out, first = [], True
+    while raw:
+        limit = 75 if first else 74
+        cut = min(limit, len(raw))
+        while cut < len(raw) and (raw[cut] & 0xC0) == 0x80:   # mid-character
+            cut -= 1
+        if cut <= 0:                                          # nothing else fits
+            cut = min(limit, len(raw))
+        out.append(("" if first else " ") + raw[:cut].decode("utf-8", "replace"))
+        raw = raw[cut:]
+        first = False
+    return out
+
+
+def _value(line: str) -> str:
+    """Everything after a content line's name and parameters.
+
+    The first colon, but not one inside a quoted parameter: `CN="Meier: Anna"`
+    is legal and its colon is part of the name, not the separator.
+    """
+    quoted = False
+    for i, ch in enumerate(line):
+        if ch == '"':
+            quoted = not quoted
+        elif ch == ":" and not quoted:
+            return line[i + 1:]
+    return ""
+
+
+def _guest(line: str) -> str:
+    """Who an ATTENDEE line is about, as a key: the address, lowercased."""
+    return re.sub(r"^mailto:", "", _value(line).strip(), flags=re.I).lower()
 
 
 def patch_ics(raw: str, event: Event) -> str:
@@ -108,15 +184,31 @@ def patch_ics(raw: str, event: Event) -> str:
     if not raw or "BEGIN:VEVENT" not in raw:
         return event_to_ics(event)
     fresh = ICalendar.from_ical(event_to_ics(event))
-    replacement = {}
+    replacement: dict[str, list[str]] = {name: [] for name in _OWNED}
     for comp in fresh.walk("VEVENT"):
-        for line in comp.to_ical().decode("utf-8", "replace").splitlines():
+        for line in _unfold(comp.to_ical().decode("utf-8", "replace")):
             name = re.split(r"[;:]", line, maxsplit=1)[0]
             if name in _PATCHABLE:
                 replacement.setdefault(name, []).append(line)
 
+    # ATTENDEE is rebuilt rather than overwritten. The panel decides *who* is on
+    # the invitation; the server decides what each of them said back. So a guest
+    # the original already had keeps their line exactly as it arrived -- PARTSTAT,
+    # DELEGATED-TO, X- parameters and all -- and only somebody genuinely new gets
+    # a line written here. Without this, opening an event before an acceptance had
+    # synced down and saving an unrelated field would put NEEDS-ACTION back over
+    # the "yes" the server already had.
+    if "ATTENDEE" in replacement:
+        already = {}
+        for line in _unfold(raw):
+            if re.split(r"[;:]", line, maxsplit=1)[0] == "ATTENDEE":
+                already[_guest(line)] = line
+        replacement["ATTENDEE"] = [
+            already.get(_guest(line), line) for line in replacement["ATTENDEE"]
+        ]
+
     out, seen = [], set()
-    for line in raw.splitlines():
+    for line in _unfold(raw):
         name = re.split(r"[;:]", line, maxsplit=1)[0]
         if name in replacement:
             if name not in seen:
@@ -130,4 +222,11 @@ def patch_ics(raw: str, event: Event) -> str:
         if missing:
             idx = next(i for i, ln in enumerate(out) if ln.startswith("END:VEVENT"))
             out[idx:idx] = missing
-    return "\r\n".join(out) + "\r\n"
+    lines = [phys for line in out for phys in _fold(line)]
+    if "BEGIN:VCALENDAR" not in raw:
+        # What the database holds is the VEVENT on its own -- core.cal.parse
+        # stores one component per row -- and a PUT of a bare component is not
+        # iCalendar at all. Google answers 400; a more forgiving server accepts
+        # something it should not. Put the envelope back.
+        lines = ["BEGIN:VCALENDAR", f"PRODID:{PRODID}", "VERSION:2.0", *lines, "END:VCALENDAR"]
+    return "\r\n".join(lines) + "\r\n"
