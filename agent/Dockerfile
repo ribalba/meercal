@@ -4,7 +4,7 @@
 # CalDAV servers are out on the internet, so the agent is an ordinary container
 # on the compose network. The credentials still never leave your machine: they
 # live in meercal.toml, mounted read-only into this container and nowhere else.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ARG MEERCAL_VERSION=0.0.0
 
