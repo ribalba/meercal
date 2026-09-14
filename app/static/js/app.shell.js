@@ -424,9 +424,18 @@ App.shell = (() => {
     document.getElementById("btn-new").onclick = () => App.editor.create();
     document.getElementById("btn-theme").onclick = () => App.theme.cycle();
     document.getElementById("btn-refresh").onclick = async (ev) => {
-      ev.currentTarget.classList.add("spin");
-      await App.api.post("/api/sync/now", {});
-      setTimeout(async () => { await refresh(); ev.currentTarget.classList.remove("spin"); }, 1500);
+      // Held, not read off the event later: `currentTarget` is only set while
+      // the click is being dispatched, so by the time the timer fired it was
+      // null, the removal threw, and the icon spun until the page was reloaded.
+      const button = ev.currentTarget;
+      button.classList.add("spin");
+      try {
+        await App.api.post("/api/sync/now", {});
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await refresh();
+      } finally {
+        button.classList.remove("spin");
+      }
     };
     document.querySelectorAll("[data-view]").forEach((btn) => {
       btn.onclick = () => { setView(btn.dataset.view); closeDrawer(); };
