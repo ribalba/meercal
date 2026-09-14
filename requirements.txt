@@ -9,13 +9,13 @@ starlette==1.6.0            # pinned directly, not left to FastAPI's range (see 
                             # (CVE-2026-54283). Both are pre-auth.
 uvicorn[standard]==0.52.4
 sqlalchemy==2.0.52
-pydantic==2.13.4
+pydantic==2.13.5
 pydantic-settings==2.15.0
 python-multipart==0.0.32    # floor: below it a part header with no end
                             # (CVE-2026-42561) or a negative Content-Length
                             # (CVE-2026-53540) is parsed before any dependency
                             # runs, so the password gate does not stop either
-psycopg[binary]==3.3.4
+psycopg[binary]==3.3.5
 
 # Calendar-specific
 icalendar==7.3.0            # RFC 5545 parsing/serialisation, both halves of the app
