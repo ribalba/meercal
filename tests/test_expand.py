@@ -90,3 +90,42 @@ def test_an_unreadable_rule_still_shows_the_first_instance():
     event = make(rrule="FREQ=NONSENSE;BY=WHAT")
     got = list(instances(event, *WINDOW))
     assert got == [(datetime(2026, 8, 24, 7, 30), datetime(2026, 8, 24, 8, 30))]
+
+
+def test_a_series_with_a_utc_until_keeps_every_instance():
+    # RFC 5545 wants UNTIL in UTC beside a DTSTART with a TZID, so this is how
+    # bounded series arrive from everyone. dateutil refuses it next to a naive
+    # DTSTART, and the unreadable-rule fallback used to leave only the first
+    # instance: this meeting appeared on 5 August and never again.
+    event = make(
+        start=datetime(2026, 8, 5, 7), local=datetime(2026, 8, 5, 9), duration_s=1800,
+        rrule="FREQ=WEEKLY;UNTIL=20270131T080000Z;INTERVAL=2;BYDAY=WE",
+    )
+    starts = [s for s, _ in instances(event, datetime(2026, 8, 1), datetime(2027, 3, 1))]
+    assert starts[:4] == [datetime(2026, 8, 5, 7), datetime(2026, 8, 19, 7),
+                          datetime(2026, 9, 2, 7), datetime(2026, 9, 16, 7)]
+    # Winter time: still 09:00 in Berlin, now 08:00 UTC.
+    assert datetime(2026, 11, 11, 8) in starts
+    # The last Wednesday of the fortnightly run before 31 January 2027 09:00.
+    assert starts[-1] == datetime(2027, 1, 20, 8)
+    assert len(starts) == 13
+
+
+def test_a_utc_until_is_inclusive_in_the_series_own_zone():
+    # UNTIL 08:00Z is 09:00 in Berlin in winter, exactly the last instance's
+    # start, which RFC 5545 counts in.
+    event = make(
+        start=datetime(2027, 1, 13, 8), local=datetime(2027, 1, 13, 9),
+        rrule="FREQ=WEEKLY;UNTIL=20270120T080000Z",
+    )
+    starts = [s for s, _ in instances(event, datetime(2027, 1, 1), datetime(2027, 3, 1))]
+    assert starts == [datetime(2027, 1, 13, 8), datetime(2027, 1, 20, 8)]
+
+
+def test_an_all_day_series_with_a_utc_until_keeps_its_dates():
+    event = make(
+        start=datetime(2026, 9, 1), local=datetime(2026, 9, 1), duration_s=86400,
+        all_day=True, tz_id="UTC", rrule="FREQ=DAILY;UNTIL=20260903T000000Z",
+    )
+    starts = [s for s, _ in instances(event, *WINDOW)]
+    assert starts == [datetime(2026, 9, 1), datetime(2026, 9, 2), datetime(2026, 9, 3)]

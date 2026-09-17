@@ -7,12 +7,12 @@ server has no access to.
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from core.config import get_settings
 from core.database import get_db
-from core.models import Account, Calendar, PendingAction, Setting
+from core.models import Account, Calendar, Event, PendingAction, Setting
 from core.timeutil import utcnow
 from ..security import require_auth
 
@@ -23,6 +23,48 @@ settings = get_settings()
 # plus a minute of slack, so an ordinary slow pass is never reported as a fault.
 STALE_AFTER = 2 * settings.agent_interval + 60
 
+# Enough to say what went wrong in a tooltip, not a second queue view.
+FAILURES_SHOWN = 10
+
+
+def _unsent(db: Session) -> list[tuple[PendingAction, str]]:
+    """Changes made here that are not on the server, with the event's title.
+
+    Two kinds: one still being retried that has failed more often than not, and
+    one the agent has given up on. The second used to drop out of the count at
+    the very moment it became true, because ``failed`` is not ``queued``: the
+    warning went away exactly when the change was abandoned, and a moved meeting
+    stayed on this screen and nowhere else without a word said about it.
+
+    A given-up change stops counting once there is nothing left to send: its
+    event was deleted here (the foreign key nulls ``event_id``), or a later
+    change to the same event has gone through, which carried the current state.
+    A failed delete has no event to point at and is not counted.
+    """
+    rows = db.execute(
+        select(PendingAction, Event.summary)
+        .join(Event, Event.id == PendingAction.event_id, isouter=True)
+        .where(
+            or_(
+                and_(PendingAction.state == "queued", PendingAction.attempts > 3),
+                and_(PendingAction.state == "failed", PendingAction.event_id.is_not(None)),
+            )
+        )
+        .order_by(PendingAction.id)
+    ).all()
+    last_done = dict(
+        db.execute(
+            select(PendingAction.event_id, func.max(PendingAction.id))
+            .where(PendingAction.state == "done", PendingAction.event_id.is_not(None))
+            .group_by(PendingAction.event_id)
+        ).all()
+    )
+    return [
+        (action, summary or "")
+        for action, summary in rows
+        if action.state == "queued" or last_done.get(action.event_id, 0) < action.id
+    ]
+
 
 @router.get("/sync/status")
 def status(db: Session = Depends(get_db)) -> dict:
@@ -31,7 +73,7 @@ def status(db: Session = Depends(get_db)) -> dict:
     queued = db.execute(
         select(PendingAction).where(PendingAction.state == "queued")
     ).scalars().all()
-    failed = [p for p in queued if p.attempts > 3]
+    unsent = _unsent(db)
     return {
         "accounts": [
             {
@@ -56,7 +98,11 @@ def status(db: Session = Depends(get_db)) -> dict:
             for c in db.execute(select(Calendar).where(Calendar.last_error != "")).scalars().all()
         ],
         "queued": len(queued),
-        "failing": len(failed),
+        "failing": len(unsent),
+        "failures": [
+            {"id": a.id, "kind": a.kind, "state": a.state, "summary": s, "error": a.error}
+            for a, s in unsent[:FAILURES_SHOWN]
+        ],
         "interval": settings.agent_interval,
     }
 

@@ -1,7 +1,7 @@
-"""A small CalDAV client: PROPFIND, REPORT, PUT, DELETE and nothing else.
+"""A small CalDAV client: PROPFIND, REPORT, GET, PUT, DELETE and nothing else.
 
 Hand-rolled rather than pulled in, for the same reason meerail speaks IMAP
-itself: what this program needs is four requests, and owning them means the
+itself: what this program needs is five requests, and owning them means the
 failures are ours to read. The XML below is the whole protocol as meercal uses
 it.
 
@@ -148,13 +148,14 @@ class CalDAVClient:
                 return ": ".join(parts)
         return text[:200]
 
-    def _request(self, method: str, url: str, body: str = "", depth: str = "0", **kw) -> httpx.Response:
+    def _request(self, method: str, url: str, body: str = "", depth: str = "0",
+                 allow: tuple[int, ...] = (), **kw) -> httpx.Response:
         headers = dict(kw.pop("headers", {}))
         if depth is not None:
             headers["Depth"] = depth
         response = self._client.request(method, url, content=body.encode() if body else None,
                                         headers=headers, **kw)
-        if response.status_code >= 400:
+        if response.status_code >= 400 and response.status_code not in allow:
             raise CalDAVError(f"{method} {url} -> {response.status_code} {self._detail(response)}")
         return response
 
@@ -402,6 +403,25 @@ class CalDAVClient:
                     )
                 )
         return out
+
+    def get(self, url: str) -> Change | None:
+        """One resource as the server holds it right now, or None if it has none.
+
+        The write path's read. A resource is a whole series (the master and
+        every instance moved out of it), and a row in the database is one of
+        those VEVENTs; writing one means changing it inside the rest, and the
+        rest has to come from the server, not from a copy that may be a pass
+        old. See core.cal.build.splice_ics.
+        """
+        response = self._request("GET", url, depth=None, allow=(404,),
+                                 headers={"Accept": "text/calendar"})
+        if response.status_code == 404:
+            return None
+        etag = (response.headers.get("ETag", "") or "").strip()
+        # A weak validator is still the name of this version; the W/ is only
+        # how the server qualifies it, and the stored etags carry no quotes.
+        etag = etag.removeprefix("W/").strip('"')
+        return Change(href=url, etag=etag, ics=response.text)
 
     # --- writing ----------------------------------------------------------
 

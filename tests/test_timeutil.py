@@ -9,6 +9,7 @@ from core.timeutil import (
     to_utc,
     week_start_of,
     zone,
+    zone_name,
 )
 
 
@@ -48,6 +49,16 @@ def test_unknown_zone_falls_back_to_utc_rather_than_raising():
     # Servers do send zone names this host has never heard of. One of them must
     # not cost the whole calendar.
     assert to_utc(datetime(2026, 8, 24, 9), "Mars/Olympus") == datetime(2026, 8, 24, 9)
+
+
+def test_a_windows_zone_name_is_the_zone_it_names_and_not_utc():
+    # What every Exchange invitation carries. Falling back to UTC here is two
+    # hours of summer wrong in Berlin.
+    assert zone_name("W. Europe Standard Time") == "Europe/Berlin"
+    assert zone("W. Europe Standard Time").key == "Europe/Berlin"
+    assert to_utc(datetime(2026, 9, 16, 13, 30), "W. Europe Standard Time") == datetime(2026, 9, 16, 11, 30)
+    assert zone_name("Europe/Paris") == "Europe/Paris"
+    assert zone_name("Mars/Olympus") == "Mars/Olympus"
 
 
 def test_the_zone_name_is_looked_for_in_all_three_places(monkeypatch, tmp_path):

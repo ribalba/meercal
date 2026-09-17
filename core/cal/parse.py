@@ -15,7 +15,7 @@ from typing import Any
 from icalendar import Calendar as ICalendar
 from icalendar.prop import vDuration
 
-from ..timeutil import UTC, to_utc, zone
+from ..timeutil import UTC, to_utc, zone, zone_name
 
 # What a VEVENT with neither DTEND nor DURATION means. RFC 5545 says a timed
 # one takes no time at all and an all-day one takes its day; both are drawn,
@@ -79,9 +79,13 @@ def _tz_name(value: Any, param_tz: str, default_tz: str) -> str:
     whatever zone the reader is in. Floating gets the calendar's own zone,
     because "the calendar's timezone" is the closest thing to the reader that a
     background sync has.
+
+    A Windows name in that parameter is stored as its IANA equivalent, so that
+    everything downstream (expansion, the builder, the browser) gets a name it
+    can actually use.
     """
     if param_tz:
-        return param_tz
+        return zone_name(param_tz)
     tzinfo = getattr(value, "tzinfo", None)
     if tzinfo is None:
         return default_tz or "UTC"

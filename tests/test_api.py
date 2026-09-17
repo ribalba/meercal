@@ -256,3 +256,50 @@ def test_the_palette_is_the_server_s_to_say(client, seeded):
     from core.models import CALENDAR_COLORS
 
     assert client.get("/api/state").json()["calendar_colors"] == list(CALENDAR_COLORS)
+
+
+def test_a_change_the_agent_gave_up_on_is_still_reported(client, seeded):
+    # The agent marks a change "failed" after its last attempt, and the status
+    # used to count only "queued" ones: the warning went away at exactly the
+    # moment the change was abandoned.
+    from core.database import SessionLocal
+    from core.models import Account, Calendar, Event, PendingAction
+
+    with SessionLocal() as db:
+        account = Account(label="Unsent", kind="caldav", url="https://example.invalid")
+        db.add(account)
+        db.flush()
+        cal = Calendar(account_id=account.id, url="https://example.invalid/unsent", name="Unsent")
+        db.add(cal)
+        db.flush()
+        start = datetime(2026, 9, 16, 11, 30)
+
+        def event(uid, summary):
+            return Event(
+                calendar_id=cal.id, uid=uid, summary=summary, search_text=summary,
+                dtstart=start, dtend=start + timedelta(minutes=30),
+                dtstart_local=start + timedelta(hours=2), tz_id="Europe/Berlin", duration_s=1800,
+            )
+
+        moved, retried = event("moved", "MA - Kupferschmidt"), event("retried", "Retried by hand")
+        db.add_all([moved, retried])
+        db.flush()
+        db.add_all([
+            PendingAction(kind="create", calendar_id=cal.id, event_id=moved.id, state="failed",
+                          attempts=5, error="CalDAVError: PUT https://example.invalid -> 412"),
+            # Given up on, and then a later change to the same event went through.
+            PendingAction(kind="create", calendar_id=cal.id, event_id=retried.id, state="failed",
+                          attempts=5, error="TypeError"),
+            PendingAction(kind="update", calendar_id=cal.id, event_id=retried.id, state="done"),
+            # A delete has no event left to send.
+            PendingAction(kind="delete", calendar_id=cal.id, event_id=None, state="failed",
+                          attempts=5, error="gone"),
+        ])
+        db.commit()
+
+    status = client.get("/api/sync/status").json()
+    assert status["failing"] == 1
+    (failure,) = status["failures"]
+    assert failure["summary"] == "MA - Kupferschmidt"
+    assert failure["state"] == "failed"
+    assert "412" in failure["error"]

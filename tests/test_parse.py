@@ -106,3 +106,58 @@ def test_an_override_parses_as_its_own_event_with_a_recurrence_key():
 def test_rubbish_in_gives_nothing_out_rather_than_an_exception():
     assert parse_calendar("") == []
     assert parse_calendar("not a calendar at all") == []
+
+
+# What Exchange sends when the organiser moves one instance of a series: the
+# zone by its Windows name, with a VTIMEZONE saying what that name means.
+OUTLOOK_MOVED_INSTANCE = """BEGIN:VCALENDAR
+METHOD:REQUEST
+PRODID:Microsoft Exchange Server 2010
+VERSION:2.0
+BEGIN:VTIMEZONE
+TZID:W. Europe Standard Time
+BEGIN:STANDARD
+DTSTART:16010101T030000
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+RRULE:FREQ=YEARLY;INTERVAL=1;BYDAY=-1SU;BYMONTH=10
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:16010101T020000
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+RRULE:FREQ=YEARLY;INTERVAL=1;BYDAY=-1SU;BYMONTH=3
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:040000008200E00074C5B7101A82E008
+RECURRENCE-ID;TZID=W. Europe Standard Time:20260916T090000
+DTSTART;TZID=W. Europe Standard Time:20260916T133000
+DTEND;TZID=W. Europe Standard Time:20260916T140000
+SUMMARY:MA - Kupferschmidt
+SEQUENCE:2
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+def test_a_windows_zone_name_is_stored_as_the_iana_zone_it_means():
+    # The instant was always right; the wall clock and the recurrence key were
+    # worked out in UTC, which put the key at 07:00 while the master's instance
+    # sits at 09:00, so the moved meeting showed up in both places.
+    (moved,) = parse_calendar(OUTLOOK_MOVED_INSTANCE)
+    assert moved.tz_id == "Europe/Berlin"
+    assert moved.dtstart == datetime(2026, 9, 16, 11, 30)
+    assert moved.dtstart_local == datetime(2026, 9, 16, 13, 30)
+    assert moved.recurrence_id == "20260916T090000"
+
+
+def test_a_windows_zone_name_is_understood_without_its_vtimezone():
+    # raw_ics keeps the VEVENT alone, so a re-parse of a stored row has no
+    # VTIMEZONE to lean on.
+    start = OUTLOOK_MOVED_INSTANCE.index("BEGIN:VEVENT")
+    end = OUTLOOK_MOVED_INSTANCE.index("END:VCALENDAR")
+    bare = "BEGIN:VCALENDAR\nVERSION:2.0\n" + OUTLOOK_MOVED_INSTANCE[start:end] + "END:VCALENDAR\n"
+    (moved,) = parse_calendar(bare)
+    assert moved.dtstart == datetime(2026, 9, 16, 11, 30)
+    assert moved.recurrence_id == "20260916T090000"

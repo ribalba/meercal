@@ -520,5 +520,10 @@ App.status = {
     bar.textContent = stale.length
       ? `${stale.map((a) => a.label).join(", ")}: not syncing`
       : `${status.failing} change(s) could not be sent`;
+    // The count says something is wrong; the tooltip says what, which is the
+    // part needed to decide whether it is worth doing again by hand.
+    bar.title = stale.length
+      ? stale.map((a) => `${a.label}: ${a.error || "no sync recently"}`).join("\n")
+      : (status.failures || []).map((f) => `${f.summary || f.kind}: ${f.error}`).join("\n");
   },
 };

@@ -21,7 +21,14 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.cal.build import event_to_ics, patch_ics
+from core.cal.build import (
+    add_exdate,
+    event_to_ics,
+    has_vevent,
+    patch_ics,
+    splice_ics,
+    vevent_text,
+)
 from core.cal.ingest import (
     delete_resource,
     get_or_create_account,
@@ -248,16 +255,130 @@ def drain_queue(db: Session, accounts: dict[str, AccountConfig]) -> int:
 
 
 def _apply_action(db: Session, action: PendingAction, cal: Calendar, cfg: AccountConfig) -> None:
+    """Make one queued change true on the server.
+
+    The unit on the server is the *resource*, not the row: a recurring series
+    and every instance moved out of it are one URL holding one VEVENT each (see
+    core.cal.build.splice_ics). So whenever a row may share its resource, the
+    resource is read first and the row's VEVENT changed inside it, and only an
+    event that is alone by construction (a new one, not an override) is written
+    as a resource of its own.
+    """
     event = db.get(Event, action.event_id) if action.event_id else None
+    # The zone a floating time is read in, as store_resource reads it: the keys
+    # that match a row to its VEVENT only agree if both sides use the same one.
+    default_tz = cal.tz_id or "UTC"
     with _client(cfg)[0] as client:
         if action.kind == "delete":
-            url = action.payload.get("url") or ""
-            if url:
-                client.delete(url, action.payload.get("etag", ""))
+            _delete(db, client, cal, action.payload, default_tz)
             return
         if event is None:
             raise RuntimeError("the event is gone locally; nothing to write")
-        url = event.url or resource_url(cal.url, event.uid)
         ics = patch_ics(event.raw_ics, event) if event.raw_ics else event_to_ics(event)
-        etag = client.put(url, ics, event.etag if action.kind == "update" else "")
+
+        if event.url:
+            # On the server already, possibly beside a master or overrides that
+            # a PUT of this VEVENT alone would delete. The If-Match is the etag
+            # this row was synced with, not the one just fetched: a resource
+            # that changed on the server since still answers 412, and the next
+            # pass brings the newer version down, as it always has.
+            url = event.url
+            current = client.get(url)
+            if current is None:
+                raise CalDAVError(
+                    f"{url} is gone from the server; the next sync pass removes it here too"
+                )
+            body = splice_ics(current.ics, event.uid, event.recurrence_id, ics, default_tz)
+            etag = client.put(url, body, event.etag or current.etag)
+        elif event.recurrence_id:
+            # A moved instance created here, typically an Outlook "this one
+            # occurrence moved" invitation imported from a mail. Its series is
+            # already a resource, and a create at that URL is a 412 on every
+            # attempt: it goes *into* the series instead. Nothing there means
+            # an invitation to the single instance, which is a resource of its
+            # own and legal as one.
+            url = _series_url(db, cal, event)
+            current = client.get(url)
+            if current is None:
+                etag = client.put(url, ics)
+            else:
+                body = splice_ics(current.ics, event.uid, event.recurrence_id, ics, default_tz)
+                etag = client.put(url, body, current.etag)
+        else:
+            url = resource_url(cal.url, event.uid)
+            etag = client.put(url, ics)
         event.url, event.etag = url, etag or event.etag
+        _share_etag(db, cal, url, etag, but=event.id)
+
+
+def _series_url(db: Session, cal: Calendar, event: Event) -> str:
+    """Where the resource an override belongs in lives: wherever a row of the
+    same series was synced from, the master's first, and otherwise the URL a
+    new resource for that UID would get."""
+    rows = db.execute(
+        select(Event.url, Event.recurrence_id).where(
+            Event.calendar_id == cal.id,
+            Event.uid == event.uid,
+            Event.url != "",
+            Event.id != event.id,
+        )
+    ).all()
+    rows.sort(key=lambda row: row.recurrence_id != "")
+    return rows[0].url if rows else resource_url(cal.url, event.uid)
+
+
+def _share_etag(db: Session, cal: Calendar, url: str, etag: str, but: int | None = None) -> list[Event]:
+    """Give every row synced from ``url`` the etag the server just handed back.
+
+    They are one resource, so they have one version. A sibling left holding the
+    etag from before this write would answer its own next edit with a 412 for a
+    change that was ours, and the sync pass would fetch a resource it already
+    has. When the server sends no etag nothing is known, and the rows keep
+    theirs. Returns the rows, for a caller with more to update on them.
+    """
+    query = select(Event).where(Event.calendar_id == cal.id, Event.url == url)
+    if but is not None:
+        query = query.where(Event.id != but)
+    rows = db.execute(query).scalars().all()
+    if etag:
+        for row in rows:
+            row.etag = etag
+    return rows
+
+
+def _delete(db: Session, client: CalDAVClient, cal: Calendar, payload: dict, default_tz: str) -> None:
+    """A deletion, which for one moved instance is an edit of its series.
+
+    Deleting the resource is right for an event and for a whole series. For an
+    override it would delete the series with it, so the override's VEVENT is
+    taken out of the resource instead and the master given an EXDATE, so the
+    instance does not come back at the time it was moved away from. Actions
+    queued before ``recurrence_id`` was part of the payload have none, and keep
+    the old meaning.
+    """
+    url = payload.get("url") or ""
+    if not url:
+        return  # never reached the server; there is nothing there to delete
+    uid, recurrence_id = payload.get("uid") or "", payload.get("recurrence_id") or ""
+    if not recurrence_id:
+        client.delete(url, payload.get("etag", ""))
+        return
+
+    current = client.get(url)
+    if current is None:
+        return  # gone already, which is what was asked for
+    body = splice_ics(current.ics, uid, recurrence_id, None, default_tz)
+    body = add_exdate(body, uid, recurrence_id, default_tz)
+    if not has_vevent(body):
+        client.delete(url, current.etag)
+        return
+    etag = client.put(url, body, current.etag)
+    rows = _share_etag(db, cal, url, etag)
+    # The master's stored text is what its next edit is patched from, and the
+    # EXDATE is not a property an edit writes. Left as it was, editing the
+    # series before the next sync pass would put the text back without the
+    # EXDATE, and the deleted instance with it.
+    master_text = vevent_text(body, uid, "", default_tz)
+    for row in rows:
+        if master_text and row.uid == uid and not row.recurrence_id:
+            row.raw_ics = master_text

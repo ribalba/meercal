@@ -133,6 +133,13 @@ def store_resource(
     put back where it belongs) has to lose the row too, and a diff by UID
     cannot see that: the deletion is the absence of a component, not a
     component saying it was deleted.
+
+    Except for a row with no URL. That one was never on the server: it was made
+    here (a moved instance imported from an invitation) and is waiting in the
+    queue to be written into this very resource. The agent syncs before it
+    drains, so a series that changed on the server in the meantime would
+    otherwise delete the override before it was ever sent, and the queued write
+    would find nothing left to write.
     """
     parsed = parse_calendar(ics_text, default_tz=calendar.tz_id or "UTC")
     if not parsed:
@@ -145,7 +152,7 @@ def store_resource(
         )
     ).scalars().all()
     for event in stale:
-        if (event.uid, event.recurrence_id) not in keep:
+        if (event.uid, event.recurrence_id) not in keep and event.url:
             db.delete(event)
     db.flush()
 

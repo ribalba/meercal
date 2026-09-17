@@ -17,6 +17,8 @@ from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from icalendar.timezone.windows_to_olson import WINDOWS_TO_OLSON
+
 UTC = timezone.utc
 
 # The two files a machine writes its zone down in. Named here rather than
@@ -26,15 +28,34 @@ TZ_NAME_FILE = "/etc/timezone"     # one line, the IANA name
 TZ_LINK_FILE = "/etc/localtime"    # a symlink into the zoneinfo database
 
 
+def zone_name(tz_id: str | None) -> str:
+    """The IANA name for a zone a calendar spelled some other way.
+
+    Exchange and Outlook write Windows names: ``TZID=W. Europe Standard Time``
+    on every invitation they send. The instant still comes out right, because
+    the VTIMEZONE beside it carries the offsets, but the *name* is what wall
+    times and recurrence keys are worked out in, and falling back to UTC there
+    put a moved meeting's RECURRENCE-ID two hours away from the instance it
+    moves. The master then kept its slot and the day showed the meeting twice.
+
+    Anything that is not a Windows name is handed back unchanged, including
+    names this host has never heard of: ``zone`` decides what to do with those.
+    """
+    name = (tz_id or "").strip()
+    return WINDOWS_TO_OLSON.get(name, name)
+
+
 @lru_cache(maxsize=256)
 def zone(tz_id: str | None) -> ZoneInfo:
     """A zone by name, falling back to UTC rather than raising.
 
     A calendar server can and does send zone names this host has never heard of
-    (Windows names, retired IANA aliases). One bad VTIMEZONE must not stop the
+    (retired IANA aliases, ``GMT+0200``). One bad VTIMEZONE must not stop the
     rest of a calendar from syncing. The event lands in UTC and is off by an
     offset, which is visible and fixable; an exception here loses the calendar.
+    Windows names are not among them: see ``zone_name``.
     """
+    tz_id = zone_name(tz_id)
     if not tz_id or tz_id.upper() == "UTC":
         return ZoneInfo("UTC")
     try:

@@ -197,3 +197,50 @@ def test_a_token_the_server_will_not_advance_ends_the_walk():
     assert listing.drained is True
     assert len(client.seen) == 1
     client.close()
+
+
+# --- reading one resource ----------------------------------------------------
+#
+# The write path reads the resource it is about to change: a series and its
+# moved instances are one resource, and a row is only one VEVENT of it.
+
+SERIES = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"
+
+
+def _answering(response: httpx.Response):
+    """A client whose every request is answered with ``response``."""
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return response
+
+    c = CalDAVClient(CAL)
+    c.close()
+    c._client = httpx.Client(transport=httpx.MockTransport(handler), base_url=CAL)
+    c.seen = seen
+    return c
+
+
+@pytest.mark.parametrize("header", ['"abc"', 'W/"abc"', "abc"])
+def test_get_answers_with_the_body_and_a_bare_etag(header):
+    with _answering(httpx.Response(200, text=SERIES, headers={"ETag": header})) as client:
+        got = client.get(CAL + "a.ics")
+        (request,) = client.seen
+    assert (got.href, got.etag, got.ics) == (CAL + "a.ics", "abc", SERIES)
+    assert request.method == "GET"
+    # Depth means something to PROPFIND and REPORT, and nothing to a GET.
+    assert "Depth" not in request.headers
+
+
+def test_get_of_a_resource_that_is_not_there_is_none():
+    with _answering(httpx.Response(404, text="Not Found")) as client:
+        assert client.get(CAL + "gone.ics") is None
+
+
+def test_get_of_a_resource_the_server_will_not_give_is_an_error():
+    from agent.caldav import CalDAVError
+
+    with _answering(httpx.Response(403, text="Forbidden")) as client:
+        with pytest.raises(CalDAVError, match="GET .* -> 403"):
+            client.get(CAL + "a.ics")

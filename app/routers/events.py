@@ -20,10 +20,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.cal.build import new_uid
+from core.cal.build import new_uid, recurrence_wall
 from core.config import get_settings
 from core.database import get_db
-from core.expand import horizon, rebuild_series
+from core.expand import horizon, rebuild_event, rebuild_series
 from core.models import Account, Calendar, Event, Occurrence, PendingAction
 from core.timeutil import UTC
 from ..query import occurrences_in_range, parse_query
@@ -140,7 +140,10 @@ def _queue(db: Session, kind: str, event: Event) -> None:
             kind=kind,
             calendar_id=cal.id,
             event_id=event.id if kind != "delete" else None,
-            payload={"uid": event.uid, "url": event.url, "etag": event.etag},
+            # recurrence_id is what tells the agent that deleting this row means
+            # editing its series rather than deleting the resource it shares.
+            payload={"uid": event.uid, "url": event.url, "etag": event.etag,
+                     "recurrence_id": event.recurrence_id},
         )
     )
 
@@ -228,6 +231,57 @@ def delete_event(event_id: int, db: Session = Depends(get_db)) -> dict:
     if cal is not None and cal.read_only:
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"{cal.label} is read-only")
     _queue(db, "delete", event)
+    key = event.recurrence_id
+    master = _master_of(db, event) if key else None
+    # A moved instance that never reached its server (an imported invitation
+    # still in the queue, or one that failed) is not on the server to exclude:
+    # the series there still has the instance where it always was, and the
+    # agent has nothing to send for a row without a URL. Deleting it here means
+    # dropping the import, so the instance goes back to its slot rather than
+    # getting an EXDATE that would exist on this screen only.
+    account = db.get(Account, cal.account_id) if cal is not None else None
+    unsent = not event.url and account is not None and account.kind != "local"
     db.delete(event)
+    db.flush()
+    if master is not None:
+        if unsent:
+            rebuild_event(db, master, horizon(settings))
+        else:
+            _exclude_instance(db, master, key)
     db.commit()
     return {"ok": True}
+
+
+def _master_of(db: Session, event: Event) -> Event | None:
+    return db.execute(
+        select(Event).where(
+            Event.calendar_id == event.calendar_id,
+            Event.uid == event.uid,
+            Event.recurrence_id == "",
+        )
+    ).scalar_one_or_none()
+
+
+def _exclude_instance(db: Session, master: Event, key: str) -> None:
+    """Take the instance ``key`` out of ``master``'s series, here.
+
+    Deleting a moved instance deletes its override row, and with the row goes
+    the only thing that kept the master off that slot (core.expand skips the
+    instances an override replaces). Without an EXDATE the meeting would come
+    straight back, at the time it was moved away from. The agent writes the same
+    EXDATE into the resource on the server; this is the half that is on screen
+    before it does.
+
+    Stored the way core.cal.parse stores EXDATE: wall-time ISO strings, comma
+    separated. The override row is deleted and flushed before this runs, so
+    the rebuild cannot lean on it to keep the slot empty.
+    """
+    parsed = recurrence_wall(key)
+    if parsed is None:
+        return
+    stamp = parsed[0].isoformat()
+    dates = [d.strip() for d in (master.exdate or "").split(",") if d.strip()]
+    if stamp not in dates:
+        master.exdate = ",".join([*dates, stamp])
+    db.flush()
+    rebuild_event(db, master, horizon(settings))

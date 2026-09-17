@@ -15,6 +15,7 @@ is the drawing that is bounded, not the data.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from typing import Iterable, Iterator
 
@@ -41,6 +42,33 @@ def recurrence_key(wall: datetime, all_day: bool) -> str:
     wall time both of them are stated in.
     """
     return wall.strftime("%Y%m%d") if all_day else wall.strftime("%Y%m%dT%H%M%S")
+
+
+_UTC_UNTIL = re.compile(r"(UNTIL=)(\d{8}T\d{6})Z", re.I)
+
+
+def _wall_until(rule: str, tz, all_day: bool) -> str:
+    """A rule's UNTIL restated in the wall time the rule is expanded in.
+
+    RFC 5545 requires UNTIL in UTC whenever DTSTART carries a TZID, so this is
+    the normal case and not an odd one: bounded series from Apple, Outlook and
+    Google are all written that way. dateutil refuses a UTC UNTIL beside the
+    naive wall-time DTSTART expansion runs on, and the fallback for a rule it
+    cannot read then drew only the first instance. A fortnightly meeting booked
+    until January showed up once, in August, and nowhere after.
+
+    An all-day rule keeps the numbers as they are, for the same reason its
+    dates are never converted.
+    """
+    def restate(match: re.Match) -> str:
+        try:
+            instant = datetime.strptime(match.group(2), "%Y%m%dT%H%M%S")
+        except ValueError:
+            return match.group(0)
+        wall = instant if all_day else from_utc(instant, tz)
+        return match.group(1) + wall.strftime("%Y%m%dT%H%M%S")
+
+    return _UTC_UNTIL.sub(restate, rule)
 
 
 def _parse_dates(raw: str) -> list[datetime]:
@@ -95,7 +123,7 @@ def instances(
 
     rule_text = "\n".join(
         line for line in (
-            *(f"RRULE:{r}" for r in event.rrule.splitlines() if r.strip()),
+            *(f"RRULE:{_wall_until(r, tz, event.all_day)}" for r in event.rrule.splitlines() if r.strip()),
             *(f"EXDATE:{d.strftime('%Y%m%dT%H%M%S')}" for d in _parse_dates(event.exdate)),
         )
     )
