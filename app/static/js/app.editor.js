@@ -227,7 +227,9 @@ App.editor = (() => {
     const readOnly = event && event.read_only;
     const start = event ? T().parse(event.start) : (seed ? seed.start : new Date());
     let end = event ? T().parse(event.end) : (seed ? seed.end : new Date(start.getTime() + 3600000));
-    // Shown as the last day rather than the exclusive end; see nextDay().
+    // Shown as the last day rather than the exclusive end; see nextDay(). A
+    // seeded all-day range already arrives as its last day, because the
+    // gesture that drew it swept days it could see rather than a day after.
     if (event && event.all_day) end = T().addDays(end, -1);
 
     const title = App.el("input", { class: "in title-in", value: event ? event.title : "", placeholder: "Title" });
@@ -261,7 +263,7 @@ App.editor = (() => {
        arrives. Leaving a time control on screen for something that has no time
        invites setting one and then wondering why it was ignored. */
     const when = {
-      allDay: Boolean(event && event.all_day),
+      allDay: Boolean(event ? event.all_day : seed && seed.allDay),
       startDate: T().ymd(start),
       startTime: hhmm(start),
       endDate: T().ymd(end),
@@ -522,11 +524,19 @@ App.editor = (() => {
 
      `until` is the other end, for the gesture that drew one: a drag down the
      week grid has already said how long the thing is, and asking again with a
-     default hour would be ignoring the answer. */
-  function create(at, until) {
+     default hour would be ignoring the answer.
+
+     `allDay` is for the gestures that can only have meant days -- a sweep
+     across the week's all-day strip, or down the Ribbon's day rows. Those
+     carry no hour to seed, so the panel opens in its all-day shape with both
+     date pills already set, and `until` is the last day itself rather than the
+     morning after it. */
+  function create(at, until, { allDay = false } = {}) {
     const start = at || new Date(new Date().setMinutes(0, 0, 0) + 3600000);
-    const end = until && until > start ? until : new Date(start.getTime() + 3600000);
-    mount(build(null, null, { start, end }));
+    const end = until && until > start
+      ? until
+      : (allDay ? start : new Date(start.getTime() + 3600000));
+    mount(build(null, null, { start, end, allDay }));
   }
 
   return { open, create, close, get current() { return current; } };

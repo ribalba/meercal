@@ -148,9 +148,25 @@ def _queue(db: Session, kind: str, event: Event) -> None:
     )
 
 
+def _wall(value: str, field: str) -> datetime:
+    """A wall time off the wire, or a 400 saying which field was wrong.
+
+    The panel sends ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM``. Anything else is a
+    client bug or a hand-made request, and neither is an *internal* error: the
+    read path has said 400 to an unparsable bound since it was written, and the
+    write path saying 500 to the same mistake only hides it.
+    """
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"Not a date for {field}: {value!r}"
+        ) from None
+
+
 def _apply(event: Event, body: EventBody) -> None:
-    start_wall = datetime.fromisoformat(body.start)
-    end_wall = datetime.fromisoformat(body.end) if body.end else start_wall + timedelta(hours=1)
+    start_wall = _wall(body.start, "start")
+    end_wall = _wall(body.end, "end") if body.end else start_wall + timedelta(hours=1)
     event.summary = body.title
     event.description = body.description
     event.location = body.location

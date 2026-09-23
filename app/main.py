@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -27,6 +27,10 @@ from .security import PLAINTEXT_REFUSAL, is_secure_request, require_secure
 
 settings = get_settings()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+# The shell names every script it loads, so a reused copy of it pins the whole
+# app to the version before this one. It is one small file from a local server.
+SHELL_HEADERS = {"cache-control": "no-cache"}
 
 
 async def lifespan(_app: FastAPI):
@@ -65,7 +69,30 @@ def healthz() -> dict:
     return {"ok": True, "version": VERSION}
 
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+class RevalidatingStatic(StaticFiles):
+    """Static files a browser must ask about before reusing.
+
+    The script tags in index.html are unversioned, so a cached ``app.*.js`` is
+    indistinguishable from the current one until something asks. Starlette
+    already sends an ETag, but with no ``Cache-Control`` that is only an offer:
+    a browser may reuse a file for as long as its own heuristic likes, which is
+    how a fix can sit deployed on the server while the page in front of you
+    keeps running the version before it, failing in ways the server logs
+    already show fixed.
+
+    ``no-cache`` does not mean do not store. It means revalidate first, so the
+    usual answer is a 304 with no body against a server that, for this app, is
+    on the same machine. See electron/main.js, which has been clearing its
+    session cache on launch to work around this end of it.
+    """
+
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers.setdefault("cache-control", "no-cache")
+        return response
+
+
+app.mount("/static", RevalidatingStatic(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
@@ -73,7 +100,7 @@ def index(_: None = Depends(require_secure)) -> FileResponse:
     # The connection is checked, the session is not: the shell holds no
     # calendar and its whole job on a password-protected install is to put the
     # login form on screen. See app/security.py.
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(STATIC_DIR / "index.html", headers=SHELL_HEADERS)
 
 
 @app.exception_handler(404)
@@ -87,4 +114,4 @@ async def not_found(request: Request, _exc) -> JSONResponse | FileResponse:
     # out, so the refusal is written rather than thrown.
     if settings.server_password and not is_secure_request(request):
         return JSONResponse({"detail": PLAINTEXT_REFUSAL}, status_code=403)
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(STATIC_DIR / "index.html", headers=SHELL_HEADERS)

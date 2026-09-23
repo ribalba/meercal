@@ -306,6 +306,15 @@ button { font-family: inherit; color: inherit; }
 .rb-day.today { background: var(--today-tint); box-shadow: inset 0 0 0 1px var(--today-line); }
 .rb-empty { min-height: 1rem; }
 
+/* A sweep down the day rows, while it is being made. The accent rather than a
+   calendar's colour, for the reason the week's ghost uses it: which calendar
+   this lands in is the panel's first question, and the days being swept must
+   not look as though they have answered it. */
+.rb-day.rb-picking { background: var(--accent-weak); box-shadow: inset 0 0 0 1px var(--accent-soft); }
+.rb-pickcap { position: absolute; right: .5rem; top: .35rem; pointer-events: none;
+  background: var(--accent); color: #fff; border-radius: 10px; padding: .05rem .4rem;
+  font-size: .68rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+
 /* A day's events, as pills. Dense on purpose: a fortnight of twenty calendars
    has to fit on a screen, and the row grows only as far as its own content. */
 .chip { display: inline-flex; align-items: baseline; gap: .35rem; max-width: 100%;
@@ -555,6 +564,17 @@ body.dragging-time .wk-event, body.dragging-time .wk-col { cursor: grabbing; }
   padding: .1rem .3rem; overflow: hidden; }
 .wk-ghost-time { font-size: .68rem; font-variant-numeric: tabular-nums; color: var(--accent);
   font-weight: 600; white-space: nowrap; }
+
+/* The same ghost, one axis over: the grid's is drawn down a day and says
+   hours, the strip's is drawn across a week and says days. Laid on the strip's
+   own columns rather than measured in pixels, so it covers exactly the days
+   the finished bar will cover, and across every lane rather than into one --
+   it is not packed with the events yet. */
+.wk-stripghost { z-index: 6; pointer-events: none; border: 1px dashed var(--accent);
+  border-radius: 5px; background: var(--accent-weak); display: flex; align-items: center;
+  padding: .1rem .4rem; overflow: hidden; min-height: 1.1rem; }
+.wk-stripghost span { font-size: .7rem; font-variant-numeric: tabular-nums;
+  color: var(--accent); font-weight: 600; white-space: nowrap; }
 
 /* =========================================================================
    Month
@@ -968,13 +988,40 @@ textarea.in { resize: vertical; }
 .pop-day.today { box-shadow: inset 0 0 0 1px var(--accent); }
 .pop-day.on { background: var(--accent); color: #fff; font-weight: 650; }
 
-.pop-times { max-height: 15rem; overflow-y: auto; min-width: 11rem; }
+/* A field over the list, because the two ways of answering "what time" are
+   different questions. Aiming at 14:00 in a list of quarters is one click and
+   the list is the right shape for it; reaching 07:45 is three flicks of a
+   wheel, and 09:07 is not in the list at all. The field has focus the moment
+   the menu opens, so the fast path is the one your hands are already on. */
+.pop-clock { min-width: 11rem; }
+.pop-time-in { width: 100%; box-sizing: border-box; margin-bottom: .35rem;
+  padding: .3rem .5rem; border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: .85rem;
+  font-variant-numeric: tabular-nums; }
+.pop-time-in:focus { outline: none; border-color: var(--accent); }
+/* Only once what is in it cannot become a time: "9:" on the way to "9:15" is
+   half a word, and a field that goes red at every keystroke is a field that
+   is wrong more often than the person typing into it. */
+.pop-time-in.bad { border-color: var(--danger); }
+
+/* Positioned, so a row's offsetTop is measured against the list it scrolls in
+   rather than against the popover around it. */
+.pop-times { max-height: 15rem; overflow-y: auto; min-width: 11rem; position: relative; }
 .pop-time { display: flex; width: 100%; align-items: baseline; justify-content: space-between;
   gap: 1rem; border: 0; background: none; cursor: pointer; padding: .3rem .5rem;
   border-radius: 6px; font-size: .85rem; color: var(--text); text-align: left;
   font-variant-numeric: tabular-nums; }
 .pop-time:hover { background: var(--hover-tint); }
+/* Two different statements that one row can carry at once: `on` is the time
+   the pill already holds, `hot` is the one Enter would take. When they are the
+   same row it has to go on saying both, so the outline is drawn over the fill
+   rather than replacing it. */
 .pop-time.on { background: var(--accent-weak); font-weight: 620; }
+.pop-time.hot { background: var(--hover-tint-strong); }
+.pop-time.on.hot { background: var(--accent-weak); box-shadow: inset 0 0 0 1px var(--accent); }
+/* A time off the quarter grid, which is the only reason to have typed one. */
+.pop-time.exact { font-weight: 650; }
+.pop-none { padding: .4rem .5rem; font-size: .8rem; color: var(--text-muted); }
 .pop-dur { color: var(--text-muted); font-size: .74rem; }
 
 /* The calendar palette. Five by two, at a size that can be aimed at, with the

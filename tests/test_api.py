@@ -144,6 +144,45 @@ def test_creating_an_event_writes_it_and_expands_it(client, seeded):
     assert "Board call" not in [e["title"] for e in get_range(client)["events"]]
 
 
+def test_a_malformed_start_is_a_bad_request_not_a_crash(client, seeded):
+    # The time picker used to hand the panel an unpadded hour, so an event at
+    # quarter past nine went out as "...T9:15" and came back a 500. The padding
+    # is fixed in app.picker.js; this is the other half, so the next client that
+    # gets it wrong is told which field rather than shown an internal error.
+    response = client.post("/api/events", json={
+        "calendar_id": seeded["work"],
+        "title": "Board call",
+        "start": "2026-08-26T9:15",
+        "end": "2026-08-26T10:15",
+    })
+    assert response.status_code == 400, response.text
+    assert "start" in response.json()["detail"]
+
+
+def test_a_swept_multi_day_event_spans_the_days_it_covered(client, seeded):
+    # What the Ribbon's sweep and the week strip's sweep send: whole days, and
+    # DTEND the morning after the last one. The panel shows the last day
+    # because that is what "until" means to a reader; the wire carries the
+    # exclusive end because that is what iCalendar means by DTEND. A 21st-to-
+    # 24th sweep is four days, and the off-by-one either way is the bug this
+    # is here to catch.
+    created = client.post("/api/events", json={
+        "calendar_id": seeded["work"],
+        "title": "Conference",
+        "start": "2026-08-24",
+        "end": "2026-08-28",
+        "all_day": True,
+    })
+    assert created.status_code == 201, created.text
+    assert created.json()["all_day"] is True
+
+    trip = next(e for e in get_range(client)["events"] if e["title"] == "Conference")
+    assert trip["span_days"] == 4
+    assert trip["start"].startswith("2026-08-24")
+
+    client.delete(f"/api/events/{created.json()['event_id']}")
+
+
 def test_visibility_is_server_side_state(client, seeded):
     client.post("/api/calendars/visibility", json={"visible": [seeded["family"]]})
     titles = [e["title"] for e in get_range(client)["events"]]

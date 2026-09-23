@@ -44,6 +44,10 @@ App.ribbon = (() => {
   const EDGE_DAYS_BACK = 10;
   const EDGE_DAYS_FORWARD = 21;
   const SLIDE_DAYS = 45;
+  // px of movement before a press on a day row is a sweep rather than a click,
+  // and px from the end of the scroller where a sweep starts scrolling it.
+  const SWEEP_SLOP = 4;
+  const SWEEP_EDGE = 30;
 
   let root = null;          // the scrolling container
   let rows = [];            // {date, kind, top}: one per rendered grid row
@@ -135,15 +139,21 @@ App.ribbon = (() => {
     if (!events.length) body.append(App.el("div", { class: "rb-empty", text: "" }));
 
     /* Clicking the empty part of a day starts an event on it, the way
-       double-clicking the grid does in the other views. A single click here
-       because a day row is a discrete target rather than a surface you drag
-       across, and only when the click landed on the row itself, so the chips
-       keep opening what they are. */
+       double-clicking the grid does in the other views. A single click,
+       because a day row is a discrete target rather than an axis you have to
+       aim along, and only when the click landed on the row itself, so the
+       chips keep opening what they are.
+
+       Dragging down several rows is the other half of that, and the one this
+       view is shaped for: days run continuously down the page here, so a
+       fortnight is a sweep rather than a page turn. A sweep says days and
+       nothing about hours, so it makes an all-day event -- and a click still
+       means one thing at one time on one day. See the sweep section below. */
     body.addEventListener("click", (ev) => {
       if (ev.target !== body && !ev.target.classList.contains("rb-empty")) return;
       App.editor.create(defaultTimeOn(date));
     });
-    body.title = "Click to add something on this day";
+    body.title = "Click to add something on this day, or drag down several";
 
     const gutter = App.el(
       "div",
@@ -165,6 +175,164 @@ App.ribbon = (() => {
       gutter.append(App.el("div", { class: "rb-clash", text: "!", title: "Two calendars want this time" }));
     }
     return { gutter, body, isWeekStart };
+  }
+
+  /* --- sweeping days --------------------------------------------------------
+
+     The gesture the Ribbon is shaped for. Days run continuously down the page
+     here, which is the whole argument of the view: a fortnight is a stretch
+     you can see rather than three fragments on three lines. So the way to say
+     "that fortnight" is to sweep it, and until now the only way to make one
+     was the panel and two date pills -- the one view where a long event is
+     drawn honestly was the one view where you could not draw one.
+
+     A sweep says days and says nothing about hours, so what it makes is an
+     all-day event. A click still means one thing, at one time, on one day.
+
+     Only the day rows start a sweep: a collapsed run of quiet days is a line
+     standing in for a week of nothing, and beginning there would be aiming at
+     a row that is not really a row. Sweeping *over* one is fine, and picks the
+     day within the run that the pointer is actually level with. */
+
+  let dayNodes = [];        // {node, date, days}: every row a sweep can land on
+  let sweep = null;
+
+  const clampNum = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+  function dateAtY(y) {
+    if (!dayNodes.length) return null;
+    let hit = dayNodes[0];
+    let best = Infinity;
+    dayNodes.forEach((d) => {
+      const r = d.node.getBoundingClientRect();
+      const away = y < r.top ? r.top - y : Math.max(y - r.bottom, 0);
+      if (away < best) { best = away; hit = d; }
+    });
+    if (hit.days === 1) return hit.date;
+    // A collapsed run is one line standing for several days, so how far down
+    // the line the pointer is decides which of them it means.
+    const r = hit.node.getBoundingClientRect();
+    const frac = clampNum((y - r.top) / Math.max(r.height, 1), 0, 0.999);
+    return T().addDays(hit.date, Math.floor(frac * hit.days));
+  }
+
+  function paintSweep() {
+    const g = sweep;
+    dayNodes.forEach((d) => {
+      const last = T().addDays(d.date, d.days - 1);
+      d.node.classList.toggle("rb-picking", last >= g.from && d.date <= g.to);
+    });
+    const n = T().daysBetween(g.from, g.to) + 1;
+    g.cap.textContent = n === 1 ? "1 day" : `${n} days`;
+    if (!g.cap.parentElement) g.node.append(g.cap);
+  }
+
+  function clearSweep(g) {
+    dayNodes.forEach((d) => d.node.classList.remove("rb-picking"));
+    g.cap.remove();
+  }
+
+  function onSweepDown(ev) {
+    if (sweep || ev.button !== 0 || ev.ctrlKey) return;
+    const body = ev.target.closest(".rb-day");
+    if (!body) return;
+    // The same guard the click has: a chip is an event and opens one.
+    if (ev.target !== body && !ev.target.classList.contains("rb-empty")) return;
+    const date = dateAtY(ev.clientY);
+    if (!date) return;
+    sweep = { anchor: date, from: date, to: date, node: body, moved: false,
+              x0: ev.clientX, y0: ev.clientY,
+              cap: App.el("span", { class: "rb-pickcap" }) };
+    window.addEventListener("pointermove", onSweepMove);
+    window.addEventListener("pointerup", onSweepUp);
+    window.addEventListener("pointercancel", cancelSweep);
+    window.addEventListener("keydown", onSweepKey, true);
+  }
+
+  function onSweepMove(ev) {
+    const g = sweep;
+    if (!g) return;
+    g.y = ev.clientY;
+    if (!g.moved) {
+      if (Math.abs(ev.clientX - g.x0) < SWEEP_SLOP &&
+          Math.abs(ev.clientY - g.y0) < SWEEP_SLOP) return;
+      g.moved = true;
+      document.body.classList.add("dragging-time");
+      g.raf = requestAnimationFrame(sweepTick);
+    }
+    ev.preventDefault();     // the text selection a sweep would otherwise leave
+    if (root) {
+      const r = root.getBoundingClientRect();
+      g.scrollBy = ev.clientY < r.top + SWEEP_EDGE ? -14
+                 : ev.clientY > r.bottom - SWEEP_EDGE ? 14 : 0;
+    }
+    const date = dateAtY(ev.clientY);
+    if (!date) return;
+    g.from = date < g.anchor ? date : g.anchor;
+    g.to = date < g.anchor ? g.anchor : date;
+    paintSweep();
+  }
+
+  /* The scroller follows a sweep that reaches its edge, so that a three-week
+     event is one gesture rather than one gesture per screenful. A frame loop
+     rather than the move events, for the reason the week grid uses one: the
+     pointer held still at the edge is exactly the case that has to keep
+     going. */
+  function sweepTick() {
+    const g = sweep;
+    if (!g) return;
+    if (g.scrollBy && root) {
+      const before = root.scrollTop;
+      root.scrollTop += g.scrollBy;
+      if (root.scrollTop !== before) {
+        const date = dateAtY(g.y);
+        if (date) {
+          g.from = date < g.anchor ? date : g.anchor;
+          g.to = date < g.anchor ? g.anchor : date;
+          paintSweep();
+        }
+      }
+    }
+    g.raf = requestAnimationFrame(sweepTick);
+  }
+
+  function unbindSweep() {
+    window.removeEventListener("pointermove", onSweepMove);
+    window.removeEventListener("pointerup", onSweepUp);
+    window.removeEventListener("pointercancel", cancelSweep);
+    window.removeEventListener("keydown", onSweepKey, true);
+    document.body.classList.remove("dragging-time");
+    if (sweep && sweep.raf) cancelAnimationFrame(sweep.raf);
+  }
+
+  function cancelSweep() {
+    if (!sweep) return;
+    clearSweep(sweep);
+    unbindSweep();
+    sweep = null;
+  }
+
+  function onSweepKey(ev) {
+    if (ev.key !== "Escape" || !sweep) return;
+    ev.stopPropagation();    // Escape here means this sweep, not the drawer
+    ev.preventDefault();
+    cancelSweep();
+  }
+
+  function onSweepUp() {
+    const g = sweep;
+    if (!g) return;
+    clearSweep(g);
+    unbindSweep();
+    sweep = null;
+    // A press that never moved is the click that was already here, and it
+    // still means one thing at one time on this day.
+    if (!g.moved) return;
+    // The click this sweep is about to fire would be that one, on top of the
+    // panel the sweep is opening.
+    window.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); },
+                            { capture: true, once: true });
+    App.editor.create(g.from, g.to, { allDay: true });
   }
 
   /* What time a click on a day means. A day row has no hour axis, so: the next
@@ -273,6 +441,7 @@ App.ribbon = (() => {
     grid.style.setProperty("--lanes", String(Math.max(lanes, 1)));
     rows = [];
     dayRow = new Map();
+    dayNodes = [];
 
     let rowIndex = 1;
     let quietFrom = null;
@@ -292,6 +461,8 @@ App.ribbon = (() => {
         dayRow.set(T().ymd(T().addDays(quietFrom, i)), rowIndex);
       }
       rows.push({ date: quietFrom, kind: "quiet", row: rowIndex, days: quietCount, node });
+      // Swept over rather than started on, but it still stands for its days.
+      dayNodes.push({ node, date: quietFrom, days: quietCount });
       rowIndex += 1;
       quietFrom = null;
       quietCount = 0;
@@ -335,6 +506,7 @@ App.ribbon = (() => {
       if (isWeekStart) { gutter.classList.add("rule"); body.classList.add("rule"); }
       cells.push(gutter, body);
       dayRow.set(key, rowIndex);
+      dayNodes.push({ node: body, date, days: 1 });
       rows.push({ date, kind: "day", row: rowIndex, node: gutter });
       rowIndex += 1;
     }
@@ -353,6 +525,9 @@ App.ribbon = (() => {
     });
 
     grid.append(...cells);
+    // One listener for every row, the way the week grid has one per block:
+    // which gesture this is comes from what the pointer went down on anyway.
+    grid.addEventListener("pointerdown", onSweepDown);
     root.replaceChildren(grid);
     root.classList.toggle("has-rail", lanes > 0);
     // Synchronously, not in a frame's time: everything that scrolls (Today,

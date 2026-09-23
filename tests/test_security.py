@@ -164,3 +164,33 @@ def test_without_a_password_nothing_is_refused(monkeypatch):
     monkeypatch.setattr(security.settings, "trusted_proxies", [])
     assert client().get("/").status_code == 200
     assert client().get("/api/version").status_code == 200
+
+
+# --- staleness -------------------------------------------------------------
+#
+# Not security, but the same front door, and the same client(): a fix that is
+# deployed and a fix that is running are different things when the shell names
+# its scripts without a version.
+
+
+def test_the_shell_and_its_scripts_must_be_revalidated(monkeypatch):
+    # index.html lists every app.*.js by a bare path, so a browser that reuses
+    # a cached copy pins the whole app to the version before it. An ETag alone
+    # does not ask that question; Cache-Control is what makes it ask.
+    monkeypatch.setattr(security.settings, "server_password", "")
+    monkeypatch.setattr(security.settings, "trusted_proxies", [])
+    for path in ("/", "/week", "/static/js/app.picker.js"):
+        r = client().get(path)
+        assert r.status_code == 200, path
+        assert r.headers["cache-control"] == "no-cache", path
+
+
+def test_revalidating_still_answers_304_so_it_stays_cheap(monkeypatch):
+    # "no-cache" means ask, not re-download: the usual answer carries no body.
+    monkeypatch.setattr(security.settings, "server_password", "")
+    monkeypatch.setattr(security.settings, "trusted_proxies", [])
+    first = client().get("/static/js/app.picker.js")
+    again = client().get("/static/js/app.picker.js",
+                         headers={"if-none-match": first.headers["etag"]})
+    assert again.status_code == 304
+    assert not again.content

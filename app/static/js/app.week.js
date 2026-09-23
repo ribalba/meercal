@@ -60,7 +60,7 @@ App.week = (() => {
 
   let root = null;          // the scrolling container: #stage itself
   let days = 7;             // columns in a period
-  let periods = [];         // {start, node, head, body, cols, top, bodyTop}
+  let periods = [];         // {start, node, head, body, cols, strip, top, bodyTop}
   let extending = false;
   /* Where in a period the view is parked: pixels from that period's midnight
      to the first hour actually visible, which is *under* the sticky header
@@ -200,6 +200,149 @@ App.week = (() => {
 
   function ghost() {
     return App.el("div", { class: "wk-ghost" }, App.el("span", { class: "wk-ghost-time" }));
+  }
+
+  /* --- drawing on the strip -------------------------------------------------
+
+     The same gesture as the grid below it, one axis over: the grid draws hours
+     by sweeping down a day, the strip draws days by sweeping across a week.
+     That is the whole of it, and it is the gesture the strip was missing --
+     multi-day events are *drawn* here and were the one kind you could not make
+     here, so the only way to a five-day trip was the panel and two date pills.
+
+     Days, not hours, so what it makes is an all-day event. A sweep across a
+     row of whole days has not said anything about what time anything starts,
+     and inventing an hour for it would be answering a question nobody asked. */
+
+  let stripLive = null;
+
+  /* Which day a pointer is over, anywhere on the page. Nearest strip by
+     vertical distance and then nearest column by horizontal, for the reason
+     slotAt does it: with the weeks stacked there are several Tuesdays on
+     screen, and a sweep that wanders out of the strip still means the days it
+     swept rather than nothing. Wandering into the *next week's* strip is how a
+     span runs past Sunday, which is the case this view exists for. */
+  function stripSlotAt(clientX, clientY) {
+    if (!periods.length) return null;
+    let period = periods[0];
+    let best = Infinity;
+    periods.forEach((p) => {
+      const r = p.strip.grid.getBoundingClientRect();
+      const away = clientY < r.top ? r.top - clientY : Math.max(clientY - r.bottom, 0);
+      if (away < best) { best = away; period = p; }
+    });
+    const r = period.strip.grid.getBoundingClientRect();
+    const i = clamp(Math.floor(((clientX - r.left) / Math.max(r.width, 1)) * days), 0, days - 1);
+    return { date: period.strip.dates[i] };
+  }
+
+  function stripCaption(from, to) {
+    const n = T().daysBetween(from, to) + 1;
+    const one = (d) => `${T().weekday(d)} ${d.getDate()}`;
+    return n === 1 ? one(from) : `${one(from)} – ${one(to)} · ${n} days`;
+  }
+
+  /* The span being drawn, in every week it touches. One ghost per period
+     rather than one for the drag: each week's strip is its own grid, so a span
+     from Thursday to the following Tuesday is two bars on two grids -- drawn
+     exactly the way the finished event will be drawn, which is the point of
+     drawing it at all. */
+  function paintStrip() {
+    const g = stripLive;
+    periods.forEach((p) => {
+      const from = T().daysBetween(p.start, g.from);
+      const to = T().daysBetween(p.start, g.to);
+      let node = g.ghosts.get(p);
+      if (to < 0 || from > days - 1) {
+        if (node) { node.remove(); g.ghosts.delete(p); }
+        return;
+      }
+      if (!node) {
+        node = App.el("div", { class: "wk-stripghost" }, App.el("span", {}));
+        g.ghosts.set(p, node);
+        p.strip.grid.append(node);
+      }
+      const a = clamp(from, 0, days - 1);
+      const b = clamp(to, 0, days - 1);
+      node.style.gridColumn = `${a + 1} / ${b + 2}`;
+      // Across every lane rather than into one: it is not packed with the
+      // events yet, and a ghost that took a lane would push them about.
+      node.style.gridRow = `1 / span ${p.strip.lanes}`;
+      node.firstChild.textContent = stripCaption(g.from, g.to);
+    });
+  }
+
+  function clearStrip(g) {
+    g.ghosts.forEach((node) => node.remove());
+    g.ghosts.clear();
+  }
+
+  function onStripDown(ev) {
+    if (stripLive || live || ev.button !== 0 || ev.ctrlKey) return;
+    // A bar is an event and opens one. Only the empty strip is a surface.
+    if (ev.target.closest(".wk-bar")) return;
+    const slot = stripSlotAt(ev.clientX, ev.clientY);
+    if (!slot) return;
+    stripLive = { anchor: slot.date, from: slot.date, to: slot.date, ghosts: new Map(),
+                  moved: false, x0: ev.clientX, y0: ev.clientY };
+    window.addEventListener("pointermove", onStripMove);
+    window.addEventListener("pointerup", onStripUp);
+    window.addEventListener("pointercancel", cancelStrip);
+    window.addEventListener("keydown", onStripKey, true);
+  }
+
+  function onStripMove(ev) {
+    const g = stripLive;
+    if (!g) return;
+    if (!g.moved) {
+      if (Math.abs(ev.clientX - g.x0) < SLOP && Math.abs(ev.clientY - g.y0) < SLOP) return;
+      g.moved = true;
+      document.body.classList.add("dragging-time");
+    }
+    ev.preventDefault();     // the text selection a sweep would otherwise leave
+    const slot = stripSlotAt(ev.clientX, ev.clientY);
+    if (!slot) return;
+    g.from = slot.date < g.anchor ? slot.date : g.anchor;
+    g.to = slot.date < g.anchor ? g.anchor : slot.date;
+    paintStrip();
+  }
+
+  function unbindStrip() {
+    window.removeEventListener("pointermove", onStripMove);
+    window.removeEventListener("pointerup", onStripUp);
+    window.removeEventListener("pointercancel", cancelStrip);
+    window.removeEventListener("keydown", onStripKey, true);
+    document.body.classList.remove("dragging-time");
+  }
+
+  function cancelStrip() {
+    if (!stripLive) return;
+    clearStrip(stripLive);
+    unbindStrip();
+    stripLive = null;
+  }
+
+  function onStripKey(ev) {
+    if (ev.key !== "Escape" || !stripLive) return;
+    ev.stopPropagation();    // Escape here means this sweep, not the drawer
+    ev.preventDefault();
+    cancelStrip();
+  }
+
+  function onStripUp() {
+    const g = stripLive;
+    if (!g) return;
+    clearStrip(g);
+    unbindStrip();
+    stripLive = null;
+    // A press that never moved is a click, and the strip's click is a
+    // double-click waiting to happen: see the dblclick on the grid below.
+    if (!g.moved) return;
+    // A sweep that ended over an existing bar is about to fire a click on it,
+    // and that bar's panel would land on top of the one being opened here.
+    window.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); },
+                            { capture: true, once: true });
+    App.editor.create(g.from, g.to, { allDay: true });
   }
 
   /* Put a box on the grid, in one column, from one minute to another. Used for
@@ -483,6 +626,16 @@ App.week = (() => {
       }, App.guests.mark(e, "wk-bar-guests", 11), App.el("span", { text: e.title })));
     });
     strip.append(grid);
+    /* The strip draws days the way the grid below draws hours, so it answers
+       the same two gestures: sweep across it for a span, double-click a day
+       for one. Both make an all-day event, because days are all either of
+       them said. */
+    grid.addEventListener("pointerdown", onStripDown);
+    grid.addEventListener("dblclick", (ev) => {
+      if (ev.target.closest(".wk-bar")) return;
+      const slot = stripSlotAt(ev.clientX, ev.clientY);
+      if (slot) App.editor.create(slot.date, slot.date, { allDay: true });
+    });
 
     // --- the time grid ---
     const dayFrom = offStart();
@@ -551,7 +704,10 @@ App.week = (() => {
     // a period has, and a day view where only one of them knew was a header
     // drawn over the wrong column.
     const node = App.el("div", { class: "wk-period", style: `--cols:${days}` }, head, body);
-    periods.push({ start, node, head, body, cols: colNodes });
+    periods.push({ start, node, head, body, cols: colNodes,
+                   // `lanes` is how tall the strip's grid is, which is what a
+                   // ghost drawn across all of them has to span.
+                   strip: { grid, dates: cols, lanes: Math.max(laneEnds.length, 1) } });
     return node;
   }
 
