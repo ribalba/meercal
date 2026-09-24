@@ -24,10 +24,12 @@ from sqlalchemy.orm import Session
 from core.cal.build import (
     add_exdate,
     event_to_ics,
+    has_organizer,
     has_vevent,
     patch_ics,
     splice_ics,
     vevent_text,
+    without_guests,
 )
 from core.cal.ingest import (
     delete_resource,
@@ -288,8 +290,23 @@ def _apply_action(db: Session, action: PendingAction, cal: Calendar, cfg: Accoun
                 raise CalDAVError(
                     f"{url} is gone from the server; the next sync pass removes it here too"
                 )
+            etag = event.etag or current.etag
+            if event.organizer and not has_organizer(current.ics):
+                # A plain event becoming an invitation. RFC 6638 scheduling is
+                # driven by the difference between the resource as it was and
+                # as it is now, and the server compares guest lists: a guest
+                # who was already on the event before it had an organiser is
+                # not a new guest, so nobody is invited (iCloud, verified: the
+                # organiser arrives, the guests keep NEEDS-ACTION, and no mail
+                # goes out). Written in two steps, then: first the organiser
+                # alone, which makes the resource a scheduling object with
+                # nobody to mail, then the guests, every one of them new to it.
+                alone = without_guests(ics, event.organizer)
+                if alone != ics:
+                    first = splice_ics(current.ics, event.uid, event.recurrence_id, alone, default_tz)
+                    etag = client.put(url, first, etag)
             body = splice_ics(current.ics, event.uid, event.recurrence_id, ics, default_tz)
-            etag = client.put(url, body, event.etag or current.etag)
+            etag = client.put(url, body, etag)
         elif event.recurrence_id:
             # A moved instance created here, typically an Outlook "this one
             # occurrence moved" invitation imported from a mail. Its series is

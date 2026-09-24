@@ -148,6 +148,38 @@ def _queue(db: Session, kind: str, event: Event) -> None:
     )
 
 
+def _organise(db: Session, cal: Calendar, event: Event) -> None:
+    """Put you on the invitation as its organiser, once there is somebody to invite.
+
+    A calendar server sends invitations by RFC 6638 scheduling, and it
+    schedules only an event whose ORGANIZER is one of the account's own
+    addresses. A guest list with nobody organising it is stored as text and
+    mails nobody, which is what every event created here used to be. The
+    address is the account's username, which is the address iCloud and Google
+    know the account by; and the organiser goes on as a guest as well, accepted
+    and in the chair, the way Apple Calendar and Google write their own.
+
+    An organiser already there is left alone, whoever it is. An invitation
+    somebody else sent stays theirs when a guest is added to it here, and one
+    the server names by principal URL stays in the server's form
+    (core.cal.build keeps that line as it arrived either way).
+    """
+    if event.organizer or not event.attendees:
+        return
+    account = db.get(Account, cal.account_id)
+    if account is None or account.kind == "local":
+        return
+    me = (account.username or "").strip().lower()
+    if "@" not in me:
+        return
+    event.organizer = me
+    if not any((p.get("email") or "").strip().lower() == me for p in event.attendees):
+        event.attendees = [
+            {"name": "", "email": me, "role": "CHAIR", "status": "ACCEPTED"},
+            *event.attendees,
+        ]
+
+
 def _wall(value: str, field: str) -> datetime:
     """A wall time off the wire, or a 400 saying which field was wrong.
 
@@ -208,6 +240,7 @@ def create_event(body: EventBody, db: Session = Depends(get_db)) -> dict:
 
     event = Event(calendar_id=cal.id, uid=new_uid(), recurrence_id="")
     _apply(event, body)
+    _organise(db, cal, event)
     db.add(event)
     db.flush()
     rebuild_series(db, event, horizon(settings))
@@ -230,6 +263,8 @@ def update_event(event_id: int, body: EventBody, db: Session = Depends(get_db)) 
     # is written and tested, the UI says "this changes every occurrence" and
     # means it.
     _apply(event, body)
+    if cal is not None:
+        _organise(db, cal, event)
     event.sequence += 1
     db.flush()
     rebuild_series(db, event, horizon(settings))

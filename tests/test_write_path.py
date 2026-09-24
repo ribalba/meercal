@@ -592,3 +592,84 @@ def test_deleting_a_moved_instance_that_never_reached_the_server_gives_its_slot_
     assert rows(db, cal)[""].exdate == ""
     assert original_slot in starts()
     assert server.requests == []
+
+
+# --- becoming an invitation --------------------------------------------------
+
+
+def _plain_event_with_a_guest(uid: str, extra: list[str] = ()) -> str:
+    return calendar(BERLIN, [
+        "BEGIN:VEVENT", f"UID:{uid}", "DTSTAMP:20260801T090000Z",
+        f"DTSTART;TZID=Europe/Berlin:{FIRST:{STAMP}}",
+        f"DTEND;TZID=Europe/Berlin:{FIRST + timedelta(minutes=30):{STAMP}}",
+        "SUMMARY:Checkin",
+        'ATTENDEE;CN="Michael";PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT:mailto:michael@example.com',
+        *extra,
+        "END:VEVENT",
+    ])
+
+
+def _organised_here(db, uid: str):
+    """The row for ``uid`` after the panel put the account on it as organiser."""
+    from sqlalchemy import select
+
+    from core.models import Event
+
+    db.expire_all()
+    event = db.execute(select(Event).where(Event.uid == uid)).scalar_one()
+    event.organizer = "me@example.com"
+    event.attendees = [
+        {"name": "", "email": "me@example.com", "role": "CHAIR", "status": "ACCEPTED"},
+        *event.attendees,
+    ]
+    event.sequence += 1
+    db.commit()
+    return event
+
+
+def test_an_organiser_added_to_a_plain_event_invites_its_guests_in_two_steps(db, server, world):
+    # iCloud invites the guests a write *adds*. A guest already on the event
+    # before it had an organiser is not added by the write that brings the
+    # organiser, so one PUT would leave them NEEDS-ACTION with no mail sent.
+    from agent.sync import drain_queue
+
+    cal = world["cal"]
+    url = CAL_URL + "plain.ics"
+    synced(db, cal, server, url, _plain_event_with_a_guest("plain@meercal"))
+    event = _organised_here(db, "plain@meercal")
+    queue(db, cal, "update", event)
+
+    assert drain_queue(db, world["accounts"]) == 1
+
+    assert server.calls() == [("GET", url), ("PUT", url), ("PUT", url)]
+    first, second = [r for r in server.requests if r.method == "PUT"]
+    alone = vevents(first.content.decode())[""]
+    assert alone.organizer == "me@example.com"
+    assert [a["email"] for a in alone.attendees] == ["me@example.com"]
+    full = vevents(second.content.decode())[""]
+    assert full.organizer == "me@example.com"
+    assert [a["email"] for a in full.attendees] == ["me@example.com", "michael@example.com"]
+    # The second write is conditional on the first having landed, not on the
+    # etag the row was synced with, which the first write made stale.
+    final = int(server.resources[url][0][1:])
+    assert second.headers["If-Match"] == f'"v{final - 1}"'
+    from sqlalchemy import select
+
+    from core.models import Event
+
+    db.expire_all()
+    assert db.execute(select(Event.etag).where(Event.uid == "plain@meercal")).scalar_one() == f"v{final}"
+
+
+def test_an_invitation_that_already_has_an_organiser_is_written_once(db, server, world):
+    from agent.sync import drain_queue
+
+    cal = world["cal"]
+    url = CAL_URL + "theirs.ics"
+    synced(db, cal, server, url, _plain_event_with_a_guest(
+        "theirs@meercal", ["ORGANIZER;CN=Me:mailto:me@example.com"]))
+    event = _organised_here(db, "theirs@meercal")
+    queue(db, cal, "update", event)
+
+    assert drain_queue(db, world["accounts"]) == 1
+    assert server.calls() == [("GET", url), ("PUT", url)]

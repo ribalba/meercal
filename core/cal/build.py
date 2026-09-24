@@ -75,7 +75,7 @@ def _vevent(event: Event) -> IEvent:
         if rule.strip():
             ve.add("rrule", _vrecur(rule.strip()))
     if event.organizer:
-        ve.add("organizer", f"mailto:{event.organizer}")
+        ve.add("organizer", _cal_address(event.organizer))
     for person in event.attendees:
         email = person.get("email", "")
         if not email:
@@ -83,13 +83,35 @@ def _vevent(event: Event) -> IEvent:
         params = {"CN": person.get("name", "") or email, "PARTSTAT": person.get("status", "NEEDS-ACTION")}
         if person.get("role"):
             params["ROLE"] = person["role"]
+        # An invitation asks for an answer, and RSVP=TRUE is how it asks: Apple
+        # and Google both put it on every guest they invite. A guest who has
+        # answered has nothing left to be asked, and an event nobody organises
+        # is not an invitation at all, whoever is listed on it.
+        if event.organizer and params["PARTSTAT"] == "NEEDS-ACTION":
+            params["RSVP"] = "TRUE"
         # Whatever else the server had on that line: CUTYPE=RESOURCE is how a
         # room says it is a room, and DELEGATED-TO is half of a delegation that
         # means nothing without its other half. The panel owns this property
         # now (see _OWNED), so anything not carried here is anything lost.
         params.update(person.get("params") or {})
-        ve.add("attendee", f"mailto:{email}", parameters=params)
+        ve.add("attendee", _cal_address(email), parameters=params)
     return ve
+
+
+def _cal_address(value: str) -> str:
+    """A person as a calendar user address: an email as ``mailto:``, and a
+    server's own form left alone.
+
+    RFC 6638 scheduling turns on the ORGANIZER, and a server runs it only for
+    an organiser it recognises as the account itself, so what goes here has to
+    be an address the server knows. iCloud names its users by principal URL
+    (``/aNDE0.../principal/``) and core.cal.parse keeps that as it came;
+    ``mailto:`` in front of a path is an address nobody has.
+    """
+    value = value.strip()
+    if value.startswith("/") or ":" in value.split("@", 1)[0]:
+        return value
+    return f"mailto:{value}"
 
 
 def _vrecur(text: str) -> vRecur:
@@ -166,7 +188,7 @@ def event_to_ics(event: Event) -> str:
 # the DTSTART and DTEND written beside it. Only an override has one to put back,
 # and a property with no replacement is left alone, so a master is untouched.
 _PATCHABLE = ("SUMMARY", "LOCATION", "DESCRIPTION", "DTSTART", "DTEND", "RRULE",
-              "STATUS", "TRANSP", "ATTENDEE", "RECURRENCE-ID")
+              "STATUS", "TRANSP", "ATTENDEE", "RECURRENCE-ID", "ORGANIZER")
 
 # Of those, the ones the panel owns *completely*: the original lines go even
 # when the edit has none to put back. Every other patchable property is
@@ -174,6 +196,17 @@ _PATCHABLE = ("SUMMARY", "LOCATION", "DESCRIPTION", "DTSTART", "DTEND", "RRULE",
 # LOCATION leaves the server's alone -- but an invitation with nobody on it is
 # a real answer, and it is the only way removing the last guest can stick.
 _OWNED = ("ATTENDEE",)
+
+# And the one that is only ever *added*: written into an original that has
+# none, never over one that has. A server keeps the organiser in a form of its
+# own (iCloud: a principal URL, with the address in an EMAIL parameter beside
+# it), and once an invitation is out the line says whose it is. No server lets
+# a client hand it to somebody else by rewriting it, and rewriting the same
+# person in a different spelling is a bug waiting to be found. So the line
+# stays exactly as it arrived, and only an event that had none gets one, which
+# is what turns a guest list nobody mails into an invitation (see
+# app.routers.events._organise).
+_ADDED_ONLY = ("ORGANIZER",)
 
 
 def _unfold(text: str) -> list[str]:
@@ -269,8 +302,14 @@ def patch_ics(raw: str, event: Event) -> str:
             already.get(_guest(line), line) for line in replacement["ATTENDEE"]
         ]
 
+    original = _unfold(raw)
+    present = {re.split(r"[;:]", line, maxsplit=1)[0] for line in original}
+    for name in _ADDED_ONLY:
+        if name in present:
+            replacement.pop(name, None)
+
     out, seen = [], set()
-    for line in _unfold(raw):
+    for line in original:
         name = re.split(r"[;:]", line, maxsplit=1)[0]
         if name in replacement:
             if name not in seen:
@@ -292,6 +331,26 @@ def patch_ics(raw: str, event: Event) -> str:
         # something it should not. Put the envelope back.
         lines = ["BEGIN:VCALENDAR", f"PRODID:{PRODID}", "VERSION:2.0", *lines, "END:VCALENDAR"]
     return "\r\n".join(lines) + "\r\n"
+
+
+def has_organizer(ics: str) -> bool:
+    """Does any component of this text carry an ORGANIZER?"""
+    return any(re.split(r"[;:]", line, maxsplit=1)[0] == "ORGANIZER" for line in _unfold(ics))
+
+
+def without_guests(ics: str, organizer: str) -> str:
+    """The same text with every ATTENDEE but the organiser's own line taken out.
+
+    The first half of turning a plain event into an invitation on a server
+    that is already holding it; see agent.sync._apply_action for why there
+    are two halves.
+    """
+    me = re.sub(r"^mailto:", "", organizer.strip(), flags=re.I).lower()
+    kept = [
+        line for line in _unfold(ics)
+        if re.split(r"[;:]", line, maxsplit=1)[0] != "ATTENDEE" or _guest(line) == me
+    ]
+    return "\r\n".join(phys for line in kept for phys in _fold(line)) + "\r\n"
 
 
 # --- whole resources ---------------------------------------------------------

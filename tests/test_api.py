@@ -342,3 +342,101 @@ def test_a_change_the_agent_gave_up_on_is_still_reported(client, seeded):
     assert failure["summary"] == "MA - Kupferschmidt"
     assert failure["state"] == "failed"
     assert "412" in failure["error"]
+
+
+# --- organisers ---------------------------------------------------------------
+
+
+def _hosted_calendar(label: str, username: str) -> int:
+    """A calendar on a server-backed account, and its id."""
+    from core.database import SessionLocal
+    from core.models import Account, Calendar
+
+    with SessionLocal() as db:
+        account = Account(label=label, kind="icloud", url="https://example.invalid",
+                          username=username)
+        db.add(account)
+        db.flush()
+        cal = Calendar(account_id=account.id, url=f"https://example.invalid/{label}", name=label)
+        db.add(cal)
+        db.commit()
+        return cal.id
+
+
+def test_inviting_somebody_puts_you_on_as_the_organiser(client, seeded):
+    # A server sends invitations by RFC 6638 scheduling, and it schedules only
+    # an event whose ORGANIZER is the account itself. Every event created here
+    # used to go out with guests and no organiser, and mailed nobody.
+    cal_id = _hosted_calendar("Hosted", "Me@Example.com")
+    created = client.post("/api/events", json={
+        "calendar_id": cal_id, "title": "Checkin",
+        "start": "2026-09-29T09:30:00", "end": "2026-09-29T10:00:00",
+        "attendees": [{"email": "michael@example.com", "name": "Michael"}],
+    })
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["organizer"] == "me@example.com"
+    assert [p["email"] for p in body["attendees"]] == ["me@example.com", "michael@example.com"]
+    me = body["attendees"][0]
+    assert (me["role"], me["status"]) == ("CHAIR", "ACCEPTED")
+
+    # Round-tripped through the panel with the guest taken off: still yours,
+    # and you are not put on a second time.
+    edited = client.patch(f"/api/events/{body['event_id']}", json={
+        "title": "Checkin", "start": "2026-09-29T09:30:00", "end": "2026-09-29T10:00:00",
+        "attendees": [me],
+    })
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["organizer"] == "me@example.com"
+    assert [p["email"] for p in edited.json()["attendees"]] == ["me@example.com"]
+
+
+def test_an_event_nobody_is_invited_to_has_no_organiser(client, seeded):
+    cal_id = _hosted_calendar("Hosted alone", "me@example.com")
+    created = client.post("/api/events", json={
+        "calendar_id": cal_id, "title": "Focus",
+        "start": "2026-09-29T09:30:00", "end": "2026-09-29T10:00:00",
+    })
+    assert created.status_code == 201, created.text
+    assert created.json()["organizer"] == ""
+    assert created.json()["attendees"] == []
+
+
+def test_a_local_calendar_has_no_server_to_send_anything(client, seeded):
+    created = client.post("/api/events", json={
+        "calendar_id": seeded["work"], "title": "Notes",
+        "start": "2026-09-29T09:30:00", "end": "2026-09-29T10:00:00",
+        "attendees": [{"email": "cleo@example.com"}],
+    })
+    assert created.status_code == 201, created.text
+    assert created.json()["organizer"] == ""
+    assert [p["email"] for p in created.json()["attendees"]] == ["cleo@example.com"]
+
+
+def test_somebody_elses_invitation_stays_theirs_when_edited_here(client, seeded):
+    from core.database import SessionLocal
+    from core.models import Event
+
+    cal_id = _hosted_calendar("Hosted by them", "me@example.com")
+    start = datetime(2026, 9, 16, 11, 30)
+    with SessionLocal() as db:
+        theirs = Event(
+            calendar_id=cal_id, uid="theirs", summary="Their meeting", search_text="Their meeting",
+            dtstart=start, dtend=start + timedelta(minutes=30),
+            dtstart_local=start + timedelta(hours=2), tz_id="Europe/Berlin", duration_s=1800,
+            organizer="boss@example.com",
+            attendees=[{"name": "", "email": "me@example.com", "role": "REQ-PARTICIPANT",
+                        "status": "NEEDS-ACTION"}],
+        )
+        db.add(theirs)
+        db.commit()
+        event_id = theirs.id
+
+    edited = client.patch(f"/api/events/{event_id}", json={
+        "title": "Their meeting", "start": "2026-09-16T13:30:00", "end": "2026-09-16T14:00:00",
+        "attendees": [{"email": "me@example.com", "status": "NEEDS-ACTION"},
+                      {"email": "cleo@example.com"}],
+    })
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["organizer"] == "boss@example.com"
+    assert [p["email"] for p in edited.json()["attendees"]] == ["me@example.com", "cleo@example.com"]

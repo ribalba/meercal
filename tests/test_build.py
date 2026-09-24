@@ -435,3 +435,54 @@ def test_an_override_edited_in_another_zone_still_names_the_instance_it_replaces
 
     assert "RECURRENCE-ID;TZID=Europe/Berlin:20260914T153000" in patched
     assert patched.count("RECURRENCE-ID") == 1
+
+
+# --- organisers ---------------------------------------------------------------
+
+
+def test_an_organiser_is_written_and_the_guests_asked_to_answer():
+    ics = event_to_ics(an_event(
+        organizer="me@example.com",
+        attendees=[{"email": "me@example.com", "role": "CHAIR", "status": "ACCEPTED"},
+                   {"email": "cleo@example.com", "name": "Cleo"}],
+    ))
+    assert "ORGANIZER:mailto:me@example.com" in ics
+    mine, cleo = guests(ics)
+    assert "PARTSTAT=ACCEPTED" in mine and "RSVP" not in mine
+    assert "PARTSTAT=NEEDS-ACTION" in cleo and "RSVP=TRUE" in cleo
+
+
+def test_guests_of_an_event_nobody_organises_are_not_asked_to_answer():
+    ics = event_to_ics(an_event(attendees=[{"email": "cleo@example.com"}]))
+    assert "ORGANIZER" not in ics
+    assert "RSVP" not in ics
+
+
+def test_a_person_the_server_names_by_principal_goes_back_as_it_came():
+    ics = event_to_ics(an_event(
+        organizer="/aNDE0/principal/",
+        attendees=[{"email": "/aNDE0/principal/", "status": "ACCEPTED"}],
+    ))
+    assert "ORGANIZER:/aNDE0/principal/" in ics
+    assert "mailto:/" not in ics
+
+
+def test_patching_adds_an_organiser_the_original_never_had():
+    # The case of every event created here before it had one: the row gets an
+    # organiser on its next save, and the server gets a line it did not have.
+    patched = patch_ics(ORIGINAL, an_event(organizer="me@example.com"))
+    assert "ORGANIZER:mailto:me@example.com" in patched
+    assert patched.index("ORGANIZER") < patched.index("END:VEVENT")
+
+
+def test_the_servers_organiser_is_never_written_over():
+    theirs = "ORGANIZER;EMAIL=me@example.com:/aNDE0/principal/"
+    original = ORIGINAL.replace("SUMMARY:Jour fixe\r\n", f"SUMMARY:Jour fixe\r\n{theirs}\r\n")
+    patched = patch_ics(original, an_event(organizer="/aNDE0/principal/", summary="Moved"))
+    assert patched.count("ORGANIZER") == 1
+    assert theirs in patched
+    assert "SUMMARY:Moved" in patched
+    # The same person as an address is still not a reason to rewrite the line.
+    patched = patch_ics(original, an_event(organizer="me@example.com"))
+    assert theirs in patched
+    assert "mailto:me@example.com" not in patched

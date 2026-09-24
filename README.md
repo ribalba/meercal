@@ -617,9 +617,11 @@ Not there yet:
   so. Writing an override with a `RECURRENCE-ID` is the next thing.
 - **Invitations.** Everyone invited is a bubble on the event, carrying whatever the server
   last said about them: a check for an acceptance, a struck-through name for a no, and an ×
-  to take someone off again. What is missing is the mail. meercal does not send or process
-  iTIP itself, so whether an invitation reaches anybody is up to the calendar server: one
-  that does RFC 6638 scheduling sends it on the PUT, and a plain store just keeps the text.
+  to take someone off again. The mail is the server's job. meercal does not send or process
+  iTIP itself: it puts the account's address on the event as its organiser, which is what a
+  server that does RFC 6638 scheduling (iCloud, Google) needs to send the invitations on the
+  PUT, and a plain store just keeps the text. The address is the account's username, so a
+  CalDAV account that logs in by something other than its email address invites nobody.
 - **Drag to move or resize.** Everything goes through the event panel for now.
 
 ## License
