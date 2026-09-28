@@ -129,3 +129,24 @@ def test_an_all_day_series_with_a_utc_until_keeps_its_dates():
     )
     starts = [s for s, _ in instances(event, *WINDOW)]
     assert starts == [datetime(2026, 9, 1), datetime(2026, 9, 2), datetime(2026, 9, 3)]
+
+
+def test_a_yearly_rule_with_only_a_month_day_stays_in_its_month():
+    # Google writes a plain yearly event as FREQ=YEARLY;BYMONTHDAY=4 and means
+    # 4 July every year. Read by the letter of RFC 5545 it is the 4th of every
+    # month, and a birthday turned up twelve times a year.
+    event = make(
+        start=datetime(2011, 7, 4), local=datetime(2011, 7, 4), duration_s=86400,
+        all_day=True, tz_id="UTC", rrule="FREQ=YEARLY;BYMONTHDAY=4",
+    )
+    starts = [s for s, _ in instances(event, datetime(2025, 1, 1), datetime(2028, 1, 1))]
+    assert starts == [datetime(2025, 7, 4), datetime(2026, 7, 4), datetime(2027, 7, 4)]
+
+
+def test_a_yearly_rule_that_names_its_month_is_left_alone():
+    event = make(
+        start=datetime(2011, 7, 4), local=datetime(2011, 7, 4), duration_s=86400,
+        all_day=True, tz_id="UTC", rrule="FREQ=YEARLY;BYMONTHDAY=4;BYMONTH=3,9",
+    )
+    starts = [s for s, _ in instances(event, datetime(2026, 1, 1), datetime(2027, 1, 1))]
+    assert starts == [datetime(2026, 3, 4), datetime(2026, 9, 4)]

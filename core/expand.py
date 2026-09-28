@@ -71,6 +71,29 @@ def _wall_until(rule: str, tz, all_day: bool) -> str:
     return _UTC_UNTIL.sub(restate, rule)
 
 
+def _pin_month(rule: str, month: int) -> str:
+    """A YEARLY rule with a BYMONTHDAY but no BYMONTH, held to DTSTART's month.
+
+    Read by the letter of RFC 5545, ``FREQ=YEARLY;BYMONTHDAY=4`` is the 4th of
+    every month, and dateutil reads it that way. Google writes exactly this for
+    a plain yearly event and means the 4th of DTSTART's month, as it shows it
+    itself: a birthday on 4 July came out as twelve birthdays a year. Nobody
+    means "every month" by a YEARLY rule, so the Google reading wins.
+
+    A rule that already picks its days another way (BYMONTH, BYYEARDAY,
+    BYWEEKNO) is left alone.
+    """
+    parts = dict(
+        (key.strip().upper(), value.strip().upper())
+        for key, _, value in (part.partition("=") for part in rule.split(";"))
+    )
+    if parts.get("FREQ") != "YEARLY" or "BYMONTHDAY" not in parts:
+        return rule
+    if parts.keys() & {"BYMONTH", "BYYEARDAY", "BYWEEKNO"}:
+        return rule
+    return f"{rule};BYMONTH={month}"
+
+
 def _parse_dates(raw: str) -> list[datetime]:
     """EXDATE/RDATE as stored: comma-separated local wall times, ISO."""
     out: list[datetime] = []
@@ -123,7 +146,10 @@ def instances(
 
     rule_text = "\n".join(
         line for line in (
-            *(f"RRULE:{_wall_until(r, tz, event.all_day)}" for r in event.rrule.splitlines() if r.strip()),
+            *(
+                f"RRULE:{_pin_month(_wall_until(r.strip(), tz, event.all_day), event.dtstart_local.month)}"
+                for r in event.rrule.splitlines() if r.strip()
+            ),
             *(f"EXDATE:{d.strftime('%Y%m%dT%H%M%S')}" for d in _parse_dates(event.exdate)),
         )
     )
