@@ -1,0 +1,81 @@
+# The test suite, on every push to main and every pull request.
+#
+# Everything the suite can use is provided, so nothing skips for want of it:
+# a Postgres for the API, import, reminder and write-path tests (they skip
+# without MEERCAL_TEST_DB), and a Radicale for the CalDAV tests (they skip
+# without a server). A skip here would be a green tick for a test that never
+# ran, so `-ra` lists every one in the summary.
+#
+# Python and Postgres match what ships: python:3.14-slim in both images, and
+# postgres:18 in docker-compose.yml.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      # A fresh database per run. The API tests drop every table they find, so
+      # this must never be one that holds anything.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: meercal
+          POSTGRES_PASSWORD: meercal
+          POSTGRES_DB: meercal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meercal -d meercal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      MEERCAL_TEST_DB: postgresql+psycopg://meercal:meercal@127.0.0.1:5432/meercal_test
+      MEERCAL_TEST_CALDAV: http://127.0.0.1:5232
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            agent/requirements.txt
+
+      # Both halves, as `make venv` does: the tests import the server and the
+      # agent. pytest is not in either file because neither image needs it.
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r agent/requirements.txt pytest
+
+      # Radicale needs its config written before it starts, which a service
+      # container cannot wait for, so it runs through the same script as
+      # locally. The script fails the step if the server does not come up.
+      - name: Start the CalDAV test server
+        run: tools/caldav_test_server.sh start
+
+      - name: Run the tests
+        run: pytest -ra
+
+      - name: Stop the CalDAV test server
+        if: always()
+        run: tools/caldav_test_server.sh stop
