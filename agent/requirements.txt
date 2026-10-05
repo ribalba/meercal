@@ -1,7 +1,7 @@
 # meercal-agent: runs on your machine, owns the write path to every calendar
 # server. Overlaps with ../requirements.txt through the shared `core` package;
 # keep those pins in step.
-sqlalchemy==2.1.0
+sqlalchemy==2.1.1
 pydantic==2.13.5
 pydantic-settings==2.15.0
 psycopg[binary]==3.3.6
