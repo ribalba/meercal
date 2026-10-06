@@ -6,11 +6,16 @@
 # they open a PR the day an advisory lands rather than waiting for Monday.
 # Turn both on; this file cannot.
 #
-# Both requirements files pin exactly, and they overlap: `core` is shared, so
+# Both requirements files pin exactly, and they overlap. `core` is shared, so
 # `requirements.txt` and `agent/requirements.txt` name several of the same
-# packages and are meant to stay in step. Dependabot does not know that, and
-# updates each directory on its own -- so a bump to a shared pin arrives as two
-# pull requests, and merging one without the other is how they drift apart.
+# packages and must stay in step. CI installs both in one pip call, and two
+# different pins for one package fail that install before any test runs.
+#
+# That is why there is a single pip entry for "/" and none for "/agent". The pip
+# updater also reads the requirements files one directory down, so the "/" entry
+# already bumps agent/requirements.txt in the same pull request. A separate
+# "/agent" entry only added agent-only pull requests. Every package in the agent
+# file is shared, so each of those fails CI on its own, as #15 did.
 #
 # Minor and patch updates are grouped into one pull request per ecosystem,
 # because twenty separate ones a week is how a project learns to ignore them.
@@ -22,21 +27,7 @@ version: 2
 updates:
   # --- Python ---------------------------------------------------------------
   - package-ecosystem: "pip"
-    directory: "/"                      # requirements.txt: the web layer
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 10
-    labels: ["dependencies", "python"]
-    commit-message:
-      prefix: "deps"
-    groups:
-      python-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-
-  - package-ecosystem: "pip"
-    directory: "/agent"                 # agent/requirements.txt: the connector
+    directory: "/"                      # requirements.txt and agent/requirements.txt
     schedule:
       interval: "weekly"
       day: "monday"
