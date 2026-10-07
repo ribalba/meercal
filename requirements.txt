@@ -8,7 +8,7 @@ starlette==1.7.0            # pinned directly, not left to FastAPI's range (see 
                             # silently ignored for urlencoded bodies
                             # (CVE-2026-54283). Both are pre-auth.
 uvicorn[standard]==0.54.0
-sqlalchemy==2.1.1
+sqlalchemy==2.1.3
 pydantic==2.13.5
 pydantic-settings==2.15.0
 python-multipart==0.0.32    # floor: below it a part header with no end
