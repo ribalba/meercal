@@ -1,6 +1,6 @@
 # meercal-server dependencies. The agent has its own agent/requirements.txt;
 # both share the `core` package, so keep the overlapping pins in step.
-fastapi==0.142.2
+fastapi==0.143.0
 starlette==1.7.0            # pinned directly, not left to FastAPI's range (see meerail).
                             # >=1.3.1 is a floor, not a preference: below it the
                             # Range header on /static is an O(n^2) CPU sink
@@ -8,8 +8,8 @@ starlette==1.7.0            # pinned directly, not left to FastAPI's range (see 
                             # silently ignored for urlencoded bodies
                             # (CVE-2026-54283). Both are pre-auth.
 uvicorn[standard]==0.54.0
-sqlalchemy==2.1.1
-pydantic==2.13.5
+sqlalchemy==2.1.4
+pydantic==2.14.0
 pydantic-settings==2.15.0
 python-multipart==0.0.32    # floor: below it a part header with no end
                             # (CVE-2026-42561) or a negative Content-Length
@@ -20,5 +20,5 @@ psycopg[binary]==3.3.6
 # Calendar-specific
 icalendar==7.3.0            # RFC 5545 parsing/serialisation, both halves of the app
 python-dateutil==2.9.0.post0  # rrule expansion, the one hard part of a calendar
-tzdata==2026.4              # IANA zones on hosts that ship none (containers, Windows)
+tzdata==2026.5              # IANA zones on hosts that ship none (containers, Windows)
 httpx==0.28.1               # app/updates.py asks GitHub what the newest release is
