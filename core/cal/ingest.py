@@ -10,12 +10,21 @@ invisible when it goes wrong.
 from __future__ import annotations
 
 from datetime import datetime
+from urllib.parse import urlsplit
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy.orm import Session, aliased
 
 from ..expand import rebuild_series
-from ..models import CALENDAR_COLORS, Account, Calendar, Event
+from ..models import (
+    CALENDAR_COLORS,
+    Account,
+    Calendar,
+    CalendarSetMember,
+    Event,
+    EventReminder,
+    PendingAction,
+)
 from .parse import ParsedEvent, parse_calendar
 
 
@@ -80,6 +89,119 @@ def get_or_create_calendar(
     if color and not cal.color_pinned and not cal.display_name and cal.color in CALENDAR_COLORS:
         cal.color = color
     return cal
+
+
+def _collection(url: str) -> str:
+    return urlsplit(url).path.rstrip("/")
+
+
+def _origin(url: str) -> str:
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def rehome_calendar(db: Session, account: Account, url: str) -> None:
+    """Make the calendar at ``url`` the only one this account holds for it.
+
+    iCloud serves one account from more than one host. Discovery has answered
+    ``p106-caldav.icloud.com`` on one pass and ``p190-caldav.icloud.com`` on
+    the next, for the same principal, with the same paths, etags and sync
+    tokens behind both. Keyed by the whole URL, every calendar then existed
+    twice. Each copy was synced on every other pass and every event was drawn
+    twice.
+
+    So a CalDAV collection is its path within the account. A calendar held
+    under another host is moved to this one, with its events, and the exact
+    URL comparisons of the sync pass keep working. Copies an earlier pass made
+    are folded into the oldest calendar, which is the one the user's colours,
+    sets and reminder choices were made on. The events of a copy are copies
+    of the server's, so dropping them loses nothing.
+
+    A copy with writes still queued against it is left for a later pass. The
+    edit lives in the copy's own row until the queue has carried it to the
+    server, and folding the copy now would throw the edit away.
+    """
+    held = [
+        cal
+        for cal in db.execute(
+            select(Calendar).where(Calendar.account_id == account.id).order_by(Calendar.id)
+        ).scalars()
+        if _collection(cal.url) == _collection(url)
+    ]
+    if not held or [cal.url for cal in held] == [url]:
+        return
+    keep, copies = held[0], held[1:]
+    if copies and db.execute(
+        select(PendingAction.id).where(
+            PendingAction.calendar_id.in_([cal.id for cal in copies]),
+            PendingAction.state == "queued",
+        ).limit(1)
+    ).first():
+        return
+    for copy in copies:
+        _fold(db, copy, keep)
+    # The copy may hold `url` itself, and the unique constraint wants it gone
+    # before `keep` takes the URL over.
+    db.flush()
+    _rehost(db, keep, url)
+    db.flush()
+
+
+def _fold(db: Session, copy: Calendar, keep: Calendar) -> None:
+    """Move what the user made on ``copy`` over to ``keep`` and drop the rest.
+
+    Reminder choices and set memberships are moved unless ``keep`` already has
+    its own. The queue's history is moved so that a failed write stays in
+    view. Reminder deliveries go with the copy, because ``keep`` armed its own
+    for the same instances.
+    """
+    mine = aliased(EventReminder)
+    db.execute(
+        update(EventReminder)
+        .where(
+            EventReminder.calendar_id == copy.id,
+            ~exists().where(
+                mine.calendar_id == keep.id,
+                mine.uid == EventReminder.uid,
+                mine.recurrence_id == EventReminder.recurrence_id,
+            ),
+        )
+        .values(calendar_id=keep.id)
+    )
+    member = aliased(CalendarSetMember)
+    db.execute(
+        update(CalendarSetMember)
+        .where(
+            CalendarSetMember.calendar_id == copy.id,
+            ~exists().where(member.calendar_id == keep.id, member.set_id == CalendarSetMember.set_id),
+        )
+        .values(calendar_id=keep.id)
+    )
+    db.execute(
+        update(PendingAction).where(PendingAction.calendar_id == copy.id).values(calendar_id=keep.id)
+    )
+    db.delete(copy)
+
+
+def _rehost(db: Session, cal: Calendar, url: str) -> None:
+    """Point ``cal`` and everything under it at the host ``url`` names."""
+    old, new = _origin(cal.url), _origin(url)
+    if old != new:
+        db.execute(
+            update(Event)
+            .where(Event.calendar_id == cal.id, Event.url.startswith(old + "/", autoescape=True))
+            .values(url=func.concat(new, func.substr(Event.url, len(old) + 1)))
+        )
+        # A queued delete carries the URL it is to delete in its payload.
+        for action in db.execute(
+            select(PendingAction).where(
+                PendingAction.calendar_id == cal.id, PendingAction.state == "queued"
+            )
+        ).scalars():
+            href = action.payload.get("url") or ""
+            if href.startswith(old + "/"):
+                action.payload = {**action.payload, "url": new + href[len(old):]}
+    cal.url = url
 
 
 def upsert_event(

@@ -36,6 +36,7 @@ from core.cal.ingest import (
     get_or_create_account,
     get_or_create_calendar,
     prune,
+    rehome_calendar,
     store_resource,
     upsert_event,
 )
@@ -108,6 +109,8 @@ def _sync_caldav(db: Session, account: Account, cfg: AccountConfig, settings: Se
         for rc in remote:
             if only and not only.search(rc.name):
                 continue
+            # The same calendar under another host is still this calendar.
+            rehome_calendar(db, account, rc.url)
             cal = get_or_create_calendar(
                 db, account, rc.url, rc.name, color=rc.color, tz_id=rc.tz_id, read_only=rc.read_only
             )

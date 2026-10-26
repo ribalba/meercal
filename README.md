@@ -186,6 +186,10 @@ cp meercal.example.toml meercal.toml && chmod 600 meercal.toml
 make up          # postgres + server + agent  ->  http://127.0.0.1:8010
 ```
 
+With meerail running on the same machine, `make up` also joins the server to meerail's
+network (`docker-compose.meerail.yml`), so meerail's "Add to meercal" can reach it and the
+attendee field can read meerail's address book. Without meerail it starts on its own.
+
 Nothing to look at yet. Either add an account (below), or fill it with a week worth looking
 at:
 

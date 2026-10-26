@@ -1,8 +1,10 @@
 # The suite, wired together. Add this file when meerail runs on the same
-# machine and you want the attendee field to know who you write to:
+# machine and you want the attendee field to know who you write to, or
+# meerail's "Add to meercal" to reach this server:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.meerail.yml up -d
 #   make up-meerail                       # the same thing
+#   make up                               # the same, whenever meerail's network exists
 #
 # Why a file of its own, rather than a line in docker-compose.yml: the network
 # below is `external`, and compose refuses to start a stack whose external

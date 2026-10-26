@@ -31,8 +31,9 @@ BUILDER    ?= meercal
 
 help:
 	@echo "meercal $(VERSION):"
-	@echo "  make up         - build + run the stack (postgres + server + agent)"
-	@echo "  make up-meerail - the same, joined to meerail's network (attendee autocomplete)"
+	@echo "  make up         - build + run the stack (postgres + server + agent), joined to"
+	@echo "                    meerail's network whenever meerail is running"
+	@echo "  make up-meerail - the same, but an error rather than a solo stack without meerail"
 	@echo "  make down       - stop it"
 	@echo "  make logs       - tail the server ($(COMPOSE) logs -f agent for the other half)"
 	@echo "  make infra      - run only postgres (for native server dev)"
@@ -51,14 +52,33 @@ help:
 	@echo "  make hub-up     - run the published-image stack (what meercal.sh installs)"
 	@echo "  make test-db    - create the throwaway database the API tests need"
 
+# meerail's compose network, the one docker-compose.meerail.yml joins. The same
+# default as that file, and MEERAIL_NETWORK set in the environment or on the
+# command line reaches both.
+MEERAIL_NETWORK ?= meerail_meerail
+
+# Joins meerail's network whenever there is one to join. Both halves of the
+# suite need it: the attendee field reads meerail's address book over it, and
+# meerail's "Add to meercal" reaches this server over it, as
+# http://meercal-dev-server-1:8000. Without meerail the network does not exist,
+# and compose refuses a stack whose external network is missing, so the stack
+# then starts on its own exactly as it did before. That fallback is what keeps
+# `make up` working on a machine that has never seen meerail.
 up:
-	MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) $(COMPOSE) up --build -d
-	@echo "meercal on http://127.0.0.1:$${MEERCAL_PORT:-8010}"
+	@if docker network inspect $(MEERAIL_NETWORK) >/dev/null 2>&1; then \
+	  $(MAKE) --no-print-directory up-meerail; \
+	else \
+	  echo "meerail's network $(MEERAIL_NETWORK) does not exist, so meercal starts on its own."; \
+	  MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) $(COMPOSE) up --build -d; \
+	  echo "meercal on http://127.0.0.1:$${MEERCAL_PORT:-8010}"; \
+	fi
 
 # The same stack with the server on meerail's compose network as well, which is
 # what the attendee field needs: meerail's Postgres is published on the host's
 # loopback and a container cannot reach that. See docker-compose.meerail.yml,
 # which also says what [meerail] database_url has to be for this to pay off.
+# `make up` comes here by itself when meerail is running. Called directly, it
+# fails instead of falling back, for when a solo stack would be the mistake.
 up-meerail:
 	MEERCAL_UID=$$(id -u) MEERCAL_GID=$$(id -g) \
 	  $(COMPOSE) -f docker-compose.yml -f docker-compose.meerail.yml up --build -d
