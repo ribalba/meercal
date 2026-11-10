@@ -19,6 +19,6 @@ psycopg[binary]==3.3.6
 
 # Calendar-specific
 icalendar==7.3.0            # RFC 5545 parsing/serialisation, both halves of the app
-python-dateutil==2.9.0.post0  # rrule expansion, the one hard part of a calendar
+python-dateutil==4.0.0  # rrule expansion, the one hard part of a calendar
 tzdata==2026.6              # IANA zones on hosts that ship none (containers, Windows)
 httpx==0.28.1               # app/updates.py asks GitHub what the newest release is
