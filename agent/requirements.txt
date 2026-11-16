@@ -4,7 +4,7 @@
 sqlalchemy==2.1.8
 pydantic==2.14.3
 pydantic-settings==2.16.2
-psycopg[binary]==3.3.8
+psycopg[binary]==3.3.9
 icalendar==7.3.0
 python-dateutil==4.0.0
 tzdata==2026.6
