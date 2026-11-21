@@ -17,8 +17,8 @@
     "dist": "electron-builder"
   },
   "devDependencies": {
-    "electron": "44.7.0",
-    "electron-builder": "26.15.3"
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
   },
   "build": {
     "appId": "com.meercal.desktop",
