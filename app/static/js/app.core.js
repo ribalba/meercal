@@ -346,6 +346,74 @@ App.wheel = {
     }
     return null;
   },
+
+  /* The same, sideways. Only for the swipe below: the wheel never pages on a
+     horizontal delta. */
+  scrollableX(node, stop) {
+    while (node && node !== document.body) {
+      const style = getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowX) && node.scrollWidth > node.clientWidth + 1) return node;
+      if (node === stop) break;
+      node = node.parentElement;
+    }
+    return null;
+  },
+};
+
+
+/* The finger, as a way of moving through time.
+
+   A phone has no wheel, so the month and the year views had no gesture that
+   left them. The arrows in the toolbar were the only way out of a year, and a
+   reader who scrolled to December and kept going simply stopped there.
+
+   Same rule as the wheel, "scroll first, then step". A vertical swipe pages
+   only if the view could not move that way any more when the finger landed,
+   so scrolling down through the twelve months of the year view is still a
+   scroll, and the swipe *after* reaching December is the one that goes to the
+   next year. Judged at touchstart and not at touchend, because by the end the
+   swipe itself has scrolled the view to its edge. A sideways swipe pages
+   straight away unless something under the finger scrolls sideways.
+
+   Passive listeners only: nothing here stops the browser from scrolling. */
+App.swipe = {
+  MIN: 60,      // px the finger has to travel
+  RATIO: 1.4,   // how much more along one axis than the other
+
+  attach(el, onStep) {
+    let start = null;
+    el.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) { start = null; return; }
+      const t = e.touches[0];
+      start = {
+        x: t.clientX,
+        y: t.clientY,
+        up: !!App.wheel.scrollable(e.target, -1, el),
+        down: !!App.wheel.scrollable(e.target, 1, el),
+        sideways: !!App.wheel.scrollableX(e.target, el),
+      };
+    }, { passive: true });
+    // A second finger is a pinch, not a swipe.
+    el.addEventListener("touchmove", (e) => { if (e.touches.length > 1) start = null; }, { passive: true });
+    el.addEventListener("touchcancel", () => { start = null; }, { passive: true });
+    el.addEventListener("touchend", (e) => {
+      const s = start;
+      start = null;
+      if (!s || e.touches.length || !e.changedTouches.length) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      if (Math.abs(dy) >= this.MIN && Math.abs(dy) > Math.abs(dx) * this.RATIO) {
+        // The finger going up pulls the later dates in, as in any scroll.
+        const dir = dy < 0 ? 1 : -1;
+        if (dir > 0 ? s.down : s.up) return;
+        onStep(dir, "y");
+      } else if (Math.abs(dx) >= this.MIN && Math.abs(dx) > Math.abs(dy) * this.RATIO) {
+        if (s.sideways) return;
+        onStep(dx < 0 ? 1 : -1, "x");
+      }
+    }, { passive: true });
+  },
 };
 
 
@@ -382,6 +450,9 @@ App.icons = {
   // a button seventeen pixels across; this one is eleven and sits beside a
   // title, where a face or a second figure would come out as a smudge.
   person: '<circle cx="12" cy="8" r="3.6"/><path d="M4.8 20.2a7.2 7.2 0 0 1 14.4 0"/>',
+  // An arrow leaving a box: this opens somewhere that is not meercal.
+  external: '<path d="M13.5 4.5h6v6"/><line x1="19.5" y1="4.5" x2="11" y2="13"/>'
+          + '<path d="M17.5 14v5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5"/>',
 };
 
 App.icon = (name, size = 17) => {

@@ -186,6 +186,10 @@ App.year = (() => {
     const year = App.state.cursor.getFullYear();
     await App.load.events(new Date(year, 0, 1), new Date(year + 1, 0, 1));
     render();
+    // #stage is shared with every view and keeps the scroll of the last one.
+    // Coming from the Ribbon that left a phone at December, where the next
+    // swipe up (App.swipe) jumped straight to the following year.
+    root.scrollTop = 0;
   }
 
   return { show, render };

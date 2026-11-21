@@ -380,7 +380,7 @@ App.shell = (() => {
     // themselves make it.
     if (App.state.view === "ribbon") App.ribbon.goto(App.state.cursor).then(paintToolbar);
     else if (App.state.view === "week" || App.state.view === "day") App.week.goto(App.state.cursor).then(paintToolbar);
-    else show();
+    else return show();
   }
 
   /* Somewhere in particular: `t`, `g 1`-`g 12`, the date picker, a click on a
@@ -458,6 +458,19 @@ App.shell = (() => {
       // are one continuous scroll each, so there is no "next period" for a
       // wheel to jump to -- reaching the next week *is* scrolling into it.
       if (App.state.view === "month" || App.state.view === "year") step(dir, true);
+    });
+
+    // And the swipe, which is the wheel of a phone. Same two views, for the
+    // same reason: the others are continuous and a swipe already scrolls them
+    // into the next year.
+    App.swipe.attach(document.getElementById("stage"), async (dir, axis) => {
+      if (App.state.view !== "month" && App.state.view !== "year") return;
+      await step(dir);
+      // The year view is taller than a phone. Swiping on past December lands
+      // on January, and swiping back past January lands on the December
+      // before it, so the pages read as one long scroll.
+      const el = document.getElementById("stage");
+      if (App.state.view === "year") el.scrollTop = dir < 0 && axis === "y" ? el.scrollHeight : 0;
     });
 
     // A view that scrolls through time owns the date while it is being

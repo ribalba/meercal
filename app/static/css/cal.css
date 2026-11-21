@@ -268,6 +268,13 @@ button { font-family: inherit; color: inherit; }
 /* --- Stage --- */
 #stage { flex: 1; min-height: 0; overflow: auto; }
 
+/* In the month and the year view a swipe past the edge pages (App.swipe), so
+   the browser must not take the same swipe for itself. Without this a swipe
+   down on a month reloads the page on a phone, because it is also the pull
+   to refresh. */
+#stage.month, #stage.year { overscroll-behavior: contain; }
+html:has(#stage.month), html:has(#stage.year) { overscroll-behavior-y: none; }
+
 /* =========================================================================
    The Ribbon
    ========================================================================= */
@@ -713,6 +720,17 @@ textarea.in { resize: vertical; }
   padding: .12rem .55rem; font-size: .76rem; color: var(--text-muted); cursor: pointer; }
 .place:hover { border-color: var(--accent); color: var(--accent); }
 .place.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* The links found in Where and Notes. Drawn as links, in the accent and with
+   an arrow, and not as more place chips: a place chip fills the field, and
+   these open a browser, which is not a thing to do by mistake. */
+.links { display: flex; flex-wrap: wrap; gap: .3rem; padding-top: .35rem; }
+.link { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; min-width: 0;
+  border: 1px solid var(--border); background: var(--bg-elev); border-radius: 7px;
+  padding: .12rem .5rem; font-size: .76rem; color: var(--accent); text-decoration: none; }
+.link:hover { border-color: var(--accent); }
+.link-mark { display: inline-flex; flex: none; }
+.link-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The invitation, one bubble per person.
 

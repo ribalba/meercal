@@ -187,6 +187,74 @@ App.editor = (() => {
     };
   }
 
+  /* The links in Where and Notes, one chip each under the field they are in.
+
+     The fields stay text fields, because the panel is where the event is
+     edited, and a box that turns into a page on the way in cannot be typed
+     in. So the links are drawn underneath instead, and joining the meeting is
+     a click rather than a careful select-and-copy out of the middle of an
+     invitation.
+
+     What a real description holds is plain URLs, Outlook's <https://...>, and
+     now and then Google's HTML with the address in an href. Stopping at
+     whitespace, quotes and angle brackets covers all three, and stopping at
+     Markdown's "](" keeps [the text](the link) from reading as one address.
+     What is left to trim is the sentence the link was written into. */
+  const URLISH = /\b(?:https?:\/\/|www\.)(?:[^\s<>"'`\]]|\](?!\())+/gi;
+  const BRACKETS = [["(", ")"], ["[", "]"], ["{", "}"]];
+
+  function trimTail(raw) {
+    for (;;) {
+      const before = raw;
+      raw = raw.replace(/[.,;:!?*'"]+$/, "");
+      // A closing bracket belongs to the link only if the link opened one,
+      // which is the difference between a Wikipedia page and a parenthesis.
+      for (const [open, shut] of BRACKETS) {
+        if (raw.endsWith(shut) && raw.split(shut).length > raw.split(open).length) raw = raw.slice(0, -1);
+      }
+      if (raw === before) return raw;
+    }
+  }
+
+  function linksIn(text) {
+    const found = new Map();
+    for (const [match] of String(text || "").matchAll(URLISH)) {
+      const raw = trimTail(match.replace(/&amp;/g, "&"));
+      let url;
+      try { url = new URL(/^www\./i.test(raw) ? `https://${raw}` : raw); } catch (e) { continue; }
+      // The pattern only lets http and https through, and this says so once
+      // more: whatever lands in an href here came from somebody else's invite.
+      if (url.protocol !== "https:" && url.protocol !== "http:") continue;
+      found.set(url.href, url);
+    }
+    return [...found.values()];
+  }
+
+  /* Where it goes, short enough to read: the host and the path. The query
+     is usually a token nobody reads, and the whole address is on the hover. */
+  function linkLabel(url) {
+    let path = url.pathname.replace(/\/+$/, "");
+    try { path = decodeURIComponent(path); } catch (e) { /* keep it encoded */ }
+    return url.host.replace(/^www\./i, "") + path;
+  }
+
+  function linkRow() {
+    const row = App.el("div", { class: "links", hidden: true });
+    return {
+      node: row,
+      paint(urls) {
+        row.replaceChildren(...urls.map((url) => App.el("a", {
+          class: "link", href: url.href, target: "_blank", rel: "noopener noreferrer",
+          title: url.href,
+        },
+          App.el("span", { class: "link-mark", html: App.icon("external", 11) }),
+          App.el("span", { class: "link-text", text: linkLabel(url) }),
+        )));
+        row.hidden = !urls.length;
+      },
+    };
+  }
+
   function field(label, control, hint) {
     return App.el("label", { class: "fld" },
       App.el("span", { class: "fld-label", text: label }),
@@ -359,6 +427,7 @@ App.editor = (() => {
         onclick: () => {
           location.value = location.value.trim() === place.value ? "" : place.value;
           paintPlaces();
+          paintLinks();
         },
       })));
     }
@@ -366,6 +435,22 @@ App.editor = (() => {
     paintPlaces();
 
     const description = App.el("textarea", { class: "in", rows: "4", text: (detail && detail.description) || "" });
+
+    /* A meeting link is often in both: the invite puts it in the location and
+       repeats it in the text. It is drawn once, under Where, which is the
+       first place anybody looks for where the meeting is. */
+    const whereLinks = linkRow();
+    const noteLinks = linkRow();
+    function paintLinks() {
+      const here = linksIn(location.value);
+      const shown = new Set(here.map((url) => url.href));
+      whereLinks.paint(here);
+      noteLinks.paint(linksIn(description.value).filter((url) => !shown.has(url.href)));
+    }
+    location.addEventListener("input", paintLinks);
+    description.addEventListener("input", paintLinks);
+    paintLinks();
+
     // A rule the presets do not cover ("every Tuesday", "the last Friday of
     // the month") gets an option of its own, carrying the original text.
     // Without it the select falls back to "Does not repeat", and saving an
@@ -472,6 +557,7 @@ App.editor = (() => {
         App.el("div", { class: "fld" },
           App.el("span", { class: "fld-label", text: "Where" }),
           location,
+          whereLinks.node,
           places,
         ),
         /* A div rather than field()'s label: a label wrapping the bubbles would
@@ -486,7 +572,13 @@ App.editor = (() => {
         people,
         withRow,
         peopleNote,
-        field("Notes", description),
+        // A div for the same reason as Invite: the links are clicks of their
+        // own, and a label around them would also hand each one to the box.
+        App.el("div", { class: "fld" },
+          App.el("span", { class: "fld-label", text: "Notes" }),
+          description,
+          noteLinks.node,
+        ),
         // Built after the card is on screen: it needs a round trip to resolve
         // what the rules currently say about this event, and the panel must
         // not wait on that before drawing the parts it already knows.
